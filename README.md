@@ -1,112 +1,124 @@
 # xLyra Monitor
 
-xLyra Monitor is a native macOS menu bar app for watching an xLyra control panel from the status bar.
+xLyra Monitor 是一个原生 macOS 菜单栏 App，用来在状态栏里监控 xLyra 控制台。
 
-It shows the health of OAuth accounts, site pools, API keys, request volume, token usage, cost, errors, and route cooldowns. It is built with Swift Package Manager and targets macOS 14 or newer.
+它可以展示 OAuth 账号、站点池、API Key、请求量、Token 用量、成本、错误和路由冷却状态。项目基于 Swift Package Manager 构建，要求 macOS 14 或更新版本。
 
-## Features
+## 功能特性
 
-- Compact menu bar indicator for connectivity and OAuth availability.
-- Menu bar usage bars for average OAuth 5h and 7d usage across available accounts.
-- Scrollable detail panel with OAuth, Sites, and API Key tabs.
-- OAuth account details with 5h / 7d quota, plan label, credits, reset time, tokens, and cost.
-- Site pool details with sync status, validation status, model count, upstream key count, recent health, tokens, and cost.
-- API Key details with status, quota, usage, site count, request count, and copy support.
-- Manual OAuth refresh plus automatic background refresh.
-- Configurable refresh interval, theme mode, and launch-at-login setting.
-- Local configuration file storage for xLyra console URL and Admin Access Token.
+- 菜单栏紧凑展示连接状态和 OAuth 可用状态。
+- 菜单栏进度条展示所有可用 OAuth 账号的 5h / 7d 平均已用比例。
+- 明细面板支持滚动，并按 `OAuth`、`站点`、`API Key` 分页查看。
+- OAuth 账号明细展示 5h / 7d 额度、套餐、Credits、重置时间、Tokens 和成本。
+- 站点池明细展示同步状态、验证状态、模型数、上游 Key 数、近期健康状态、Tokens 和成本。
+- API Key 明细展示状态、额度、用量、站点数、请求数，并支持复制。
+- 支持手动刷新 OAuth，也支持后台自动刷新。
+- 支持配置刷新间隔、主题模式和开机自启动。
+- xLyra 控制台地址和 Admin Access Token 保存在本机配置文件中。
 
-## Privacy
+## 隐私说明
 
-The repository does not include any xLyra server address, Admin Access Token, API key, account data, or local app configuration.
+这个仓库不包含任何 xLyra 服务地址、Admin Access Token、API Key、账号数据或本机配置。
 
-At runtime, xLyra Monitor stores user configuration in:
+运行时，xLyra Monitor 会把用户配置保存在：
 
 ```text
 ~/Library/Application Support/xLyra Monitor/config.json
 ```
 
-The configuration file is created locally on the user's machine with `0600` permissions. It is not part of the app bundle or DMG package.
+这个配置文件只会在用户自己的电脑上创建，权限为 `0600`。它不会被打进 App bundle，也不会被打进 DMG。
 
-## Requirements
+## 环境要求
 
-- macOS 14 or newer
-- Xcode command line tools
-- Network access to an xLyra control panel
-- A valid xLyra Admin Access Token
+- macOS 14 或更新版本
+- Xcode Command Line Tools
+- 能访问你的 xLyra 控制台
+- 有效的 xLyra Admin Access Token
 
-## Build And Test
+## 直接安装
 
-Run all tests:
+到 Release 页面下载 DMG：
+
+[xLyra Monitor Releases](https://github.com/z4jst/xlyra-monitor/releases)
+
+打开 DMG 后，把 `xLyra Monitor.app` 拖到 `Applications`。
+
+首次打开时，如果 macOS 提示来源限制，可以右键 App 选择“打开”，或到系统设置中允许打开。当前包是本地 ad-hoc 签名，还不是 Apple Developer ID 公证包。
+
+## 首次配置
+
+1. 打开 `xLyra Monitor.app`。
+2. 点击菜单栏里的 xLyra Monitor，进入设置。
+3. 填入你的 xLyra 控制台地址。
+4. 填入 xLyra Admin Access Token。
+5. 根据需要调整刷新间隔、主题和开机自启动。
+
+## 本地构建
+
+运行全部测试：
 
 ```sh
 swift test
 ```
 
-Run the app smoke tests:
+运行 App 冒烟测试：
 
 ```sh
 swift test --filter AppSmokeTests
 ```
 
-Build the release binary:
+构建 Release：
 
 ```sh
 swift build -c release
 ```
 
-## Install Locally
-
-Build and install the app into `~/Applications`:
+安装到本机 `~/Applications`：
 
 ```sh
 scripts/install-app.sh
 ```
 
-Open the installed app:
+打开已安装 App：
 
 ```sh
 open "$HOME/Applications/xLyra Monitor.app"
 ```
 
-Restart an already running copy:
+重启已运行的 App：
 
 ```sh
 pkill -f 'Sub2APIQuotaApp' || true
 open "$HOME/Applications/xLyra Monitor.app"
 ```
 
-## Package A DMG
+## 打包 DMG
 
-Create a distributable DMG:
+生成可分发 DMG：
 
 ```sh
 scripts/package-dmg.sh
 ```
 
-The generated DMG is written to:
+生成文件位置：
 
 ```text
 .build/dist/xLyra-Monitor-0.1.0.dmg
 ```
 
-The DMG contains only:
+DMG 只包含：
 
 - `xLyra Monitor.app`
-- an `Applications` shortcut
+- `Applications` 快捷方式
 
-It does not include source files, tests, local configuration, build caches, API documentation, or credentials.
+不会包含源码、测试、本机配置、构建缓存、API 文档或任何凭据。
 
-## First Run
+## 接口说明
 
-1. Open `xLyra Monitor.app`.
-2. Click the menu bar item and open Settings.
-3. Enter your xLyra control panel URL.
-4. Enter your xLyra Admin Access Token.
-5. Adjust refresh interval, theme, and launch-at-login as needed.
+App 使用 xLyra Admin API，并通过 `X-Access-Token` 请求头传入 Admin Access Token。
 
-## Notes
+## 备注
 
-- The app uses xLyra Admin APIs with the `X-Access-Token` request header.
-- The current package is ad-hoc signed for local distribution. If you distribute it outside your own machines, macOS Gatekeeper may require users to right-click and choose Open, or approve the app in System Settings.
-- The Swift package name still contains the historical `Sub2APIQuota` target names for compatibility, while the app product is branded as xLyra Monitor.
+- Swift Package 名称和部分 target 仍保留历史名称 `Sub2APIQuota`，用于兼容现有构建和测试结构。
+- App 对外名称是 `xLyra Monitor`。
+- 当前版本主要面向本地自用和小范围分发。
