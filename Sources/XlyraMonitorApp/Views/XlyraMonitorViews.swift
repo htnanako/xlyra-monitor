@@ -94,7 +94,7 @@ private enum XlyraRiskPalette {
     }
 }
 
-enum MenuBarQuotaImageRenderer {
+enum MenuBarStatusColorRenderer {
     static func color(for colorName: String) -> NSColor {
         XlyraRiskPalette.nsColor(forRiskName: colorName)
     }
@@ -188,7 +188,7 @@ enum XlyraMenuBarImageRenderer {
             label: "5h",
             value: fiveHourCapacity.shortText,
             progress: fiveHourCapacity.usedFraction,
-            tint: MenuBarQuotaImageRenderer.color(for: fiveHourCapacity.riskColorName),
+            tint: MenuBarStatusColorRenderer.color(for: fiveHourCapacity.riskColorName),
             palette: palette,
             labelX: labelX,
             barX: barX,
@@ -202,7 +202,7 @@ enum XlyraMenuBarImageRenderer {
             label: "7d",
             value: weeklyCapacity.shortText,
             progress: weeklyCapacity.usedFraction,
-            tint: MenuBarQuotaImageRenderer.color(for: weeklyCapacity.riskColorName),
+            tint: MenuBarStatusColorRenderer.color(for: weeklyCapacity.riskColorName),
             palette: palette,
             labelX: labelX,
             barX: barX,
@@ -224,7 +224,7 @@ enum XlyraMenuBarImageRenderer {
         image.lockFocus()
         defer { image.unlockFocus() }
 
-        MenuBarQuotaImageRenderer.color(for: colorName).setFill()
+        MenuBarStatusColorRenderer.color(for: colorName).setFill()
         NSBezierPath(ovalIn: CGRect(x: 1, y: 4.5, width: 9, height: 9)).fill()
         drawText(
             text,
@@ -290,7 +290,7 @@ enum XlyraMenuBarImageRenderer {
 
     private static func drawStatusMark(colorName: String, centerText: String, in rect: CGRect, palette: MenuBarPalette) {
         let ring = NSBezierPath(ovalIn: rect.insetBy(dx: 1.1, dy: 1.1))
-        MenuBarQuotaImageRenderer.color(for: colorName).setStroke()
+        MenuBarStatusColorRenderer.color(for: colorName).setStroke()
         ring.lineWidth = 1.8
         ring.stroke()
 

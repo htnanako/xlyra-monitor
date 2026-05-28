@@ -289,8 +289,7 @@ struct AppSmokeTests {
     @Test
     func testXlyraMonitorPreferencesStartWithoutBundledConsoleURL() throws {
         let preferences = XlyraMonitorPreferences(
-            configURL: Self.temporaryXlyraConfigURL(),
-            legacyUserDefaults: nil
+            configURL: Self.temporaryXlyraConfigURL()
         )
 
         #expect(preferences.consoleURL == nil)
@@ -650,8 +649,7 @@ struct AppSmokeTests {
 
         let preferences = AppPreferences(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
         let monitorPreferences = XlyraMonitorPreferences(
-            configURL: Self.temporaryXlyraConfigURL(),
-            legacyUserDefaults: nil
+            configURL: Self.temporaryXlyraConfigURL()
         )
         let monitor = XlyraMonitor(state: state, preferences: monitorPreferences)
         let view = XlyraStatusMenuView(
@@ -688,8 +686,7 @@ struct AppSmokeTests {
             "/api/v1/requests?page=1&page_size=50": Self.apiRequestsData
         ])
         let preferences = XlyraMonitorPreferences(
-            configURL: Self.temporaryXlyraConfigURL(),
-            legacyUserDefaults: nil
+            configURL: Self.temporaryXlyraConfigURL()
         )
         preferences.consoleURL = URL(string: "https://xlyra.example.test")!
         try preferences.saveAdminAccessToken("test-admin-access-token")
@@ -752,8 +749,7 @@ struct AppSmokeTests {
             "/api/v1/oauth/connections/oauth-2/refresh": Data()
         ])
         let preferences = XlyraMonitorPreferences(
-            configURL: Self.temporaryXlyraConfigURL(),
-            legacyUserDefaults: nil
+            configURL: Self.temporaryXlyraConfigURL()
         )
         preferences.consoleURL = URL(string: "https://xlyra.example.test")!
         try preferences.saveAdminAccessToken("test-admin-access-token")
@@ -781,8 +777,7 @@ struct AppSmokeTests {
             "/api/v1/oauth/import": responseData
         ])
         let preferences = XlyraMonitorPreferences(
-            configURL: Self.temporaryXlyraConfigURL(),
-            legacyUserDefaults: nil
+            configURL: Self.temporaryXlyraConfigURL()
         )
         preferences.consoleURL = URL(string: "https://xlyra.example.test")!
         try preferences.saveAdminAccessToken("test-admin-access-token")

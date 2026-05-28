@@ -778,19 +778,13 @@ final class XlyraMonitorState: ObservableObject {
 final class XlyraMonitorPreferences {
     private let configURL: URL
     private let fileManager: FileManager
-    private let legacyUserDefaults: UserDefaults?
-    private static let legacyConsoleURLKey = "xlyra.monitor.consoleURL"
-    private static let legacyAdminAccessTokenKey = "xlyra.monitor.adminAccessToken"
 
     init(
         configURL: URL = XlyraMonitorPreferences.defaultConfigURL(),
-        fileManager: FileManager = .default,
-        legacyUserDefaults: UserDefaults? = .standard
+        fileManager: FileManager = .default
     ) {
         self.configURL = configURL
         self.fileManager = fileManager
-        self.legacyUserDefaults = legacyUserDefaults
-        migrateLegacyUserDefaultsIfNeeded()
     }
 
     var consoleURL: URL? {
@@ -855,31 +849,6 @@ final class XlyraMonitorPreferences {
         } catch {
             assertionFailure("Failed to save xLyra monitor config: \(error)")
         }
-    }
-
-    private func migrateLegacyUserDefaultsIfNeeded() {
-        guard let legacyUserDefaults else { return }
-        var config = configuration()
-        var didMigrate = false
-
-        if config.consoleURL == nil,
-           let legacyConsoleURL = legacyUserDefaults.string(forKey: Self.legacyConsoleURLKey)?.trimmingCharacters(in: .whitespacesAndNewlines),
-           legacyConsoleURL.isEmpty == false {
-            config.consoleURL = legacyConsoleURL
-            didMigrate = true
-        }
-
-        if config.adminAccessToken == nil,
-           let legacyToken = legacyUserDefaults.string(forKey: Self.legacyAdminAccessTokenKey)?.trimmingCharacters(in: .whitespacesAndNewlines),
-           legacyToken.isEmpty == false {
-            config.adminAccessToken = legacyToken
-            didMigrate = true
-        }
-
-        guard didMigrate else { return }
-        save(config)
-        legacyUserDefaults.removeObject(forKey: Self.legacyConsoleURLKey)
-        legacyUserDefaults.removeObject(forKey: Self.legacyAdminAccessTokenKey)
     }
 
     private static func defaultConfigURL() -> URL {
