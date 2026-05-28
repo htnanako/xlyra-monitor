@@ -1,13 +1,39 @@
-.build/
-.swiftpm/
+# Swift Package Manager
+/.build/
+/.swiftpm/
+Package.pins
+
+# Xcode
 DerivedData/
+*.xcworkspace/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
 *.xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+.vscode/
+
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+
+# Build and distribution artifacts
+*.app
+*.dSYM/
 *.dmg
+*.pkg
 *.zip
-API-user*.md
-docs/superpowers/
+
+# Local configuration and credentials
+.env
+.env.*
 *.env
 *.pem
 *.key
+*.p12
 *.mobileprovision
+
+# Local notes and generated docs
+API-user*.md
+docs/superpowers/

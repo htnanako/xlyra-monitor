@@ -143,6 +143,162 @@ struct XlyraSiteSummary: Decodable, Equatable {
     let rows: [XlyraSiteRow]
 }
 
+struct XlyraModelQuota: Decodable, Equatable, Identifiable {
+    let model: String
+    let displayName: String
+    let usedPercent: Double?
+    let remainingPercent: Double?
+    let resetAt: Double?
+
+    var id: String { model }
+
+    var shortName: String {
+        let lookup = "\(model) \(displayName)".lowercased()
+        if lookup.contains("gemini") { return "Gemini" }
+        if lookup.contains("opus") { return "Opus" }
+        if lookup.contains("claude") { return "Claude" }
+        return displayName.components(separatedBy: .whitespaces).first ?? model
+    }
+
+    var usedDisplayPercent: Double? {
+        Self.usedPercent(used: usedPercent, remaining: remainingPercent)
+    }
+
+    var remainingDisplayPercent: Double? {
+        Self.remainingPercent(used: usedPercent, remaining: remainingPercent)
+    }
+
+    init(
+        model: String,
+        displayName: String,
+        usedPercent: Double?,
+        remainingPercent: Double?,
+        resetAt: Double?
+    ) {
+        self.model = model
+        self.displayName = displayName
+        self.usedPercent = usedPercent
+        self.remainingPercent = remainingPercent
+        self.resetAt = resetAt
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case model
+        case displayName = "display_name"
+        case usedPercent = "used_percent"
+        case remainingPercent = "remaining_percent"
+        case resetAt = "reset_at"
+        case resetTime = "reset_time"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        model = try container.decode(String.self, forKey: .model)
+        displayName = try container.decodeIfPresent(String.self, forKey: .displayName) ?? model
+        usedPercent = try container.decodeIfPresent(Double.self, forKey: .usedPercent)
+        remainingPercent = try container.decodeIfPresent(Double.self, forKey: .remainingPercent)
+        if let resetAtValue = try container.decodeIfPresent(Double.self, forKey: .resetAt) {
+            resetAt = resetAtValue
+        } else if let resetTime = try container.decodeIfPresent(String.self, forKey: .resetTime) {
+            resetAt = Self.date(from: resetTime)?.timeIntervalSince1970
+        } else {
+            resetAt = nil
+        }
+    }
+
+    private static func usedPercent(used: Double?, remaining: Double?) -> Double? {
+        XlyraPercentNormalizer.usedPercent(used: used, remaining: remaining)
+    }
+
+    private static func remainingPercent(used: Double?, remaining: Double?) -> Double? {
+        XlyraPercentNormalizer.remainingPercent(used: used, remaining: remaining)
+    }
+
+    private static func date(from value: String) -> Date? {
+        isoFormatter.date(from: value) ?? fractionalISOFormatter.date(from: value)
+    }
+
+    private static let isoFormatter = ISO8601DateFormatter()
+
+    private static let fractionalISOFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+}
+
+struct XlyraOAuthQuotaDisplay: Equatable, Identifiable {
+    let title: String
+    let usedPercent: Double?
+    let remainingPercent: Double?
+    let resetAt: Double?
+
+    var id: String { title }
+}
+
+private enum XlyraPercentNormalizer {
+    static func usedPercent(used: Double?, remaining: Double?) -> Double? {
+        if let (usedPercent, _) = normalizedPercentPair(used: used, remaining: remaining) {
+            return boundedPercent(usedPercent)
+        }
+        if let usedPercent = normalizedPercent(used) {
+            return boundedPercent(usedPercent)
+        }
+        if let remainingPercent = normalizedPercent(remaining) {
+            return boundedPercent(100 - remainingPercent)
+        }
+        return nil
+    }
+
+    static func remainingPercent(used: Double?, remaining: Double?) -> Double? {
+        if let (_, remainingPercent) = normalizedPercentPair(used: used, remaining: remaining) {
+            return boundedPercent(remainingPercent)
+        }
+        if let remainingPercent = normalizedPercent(remaining) {
+            return boundedPercent(remainingPercent)
+        }
+        if let usedPercent = normalizedPercent(used) {
+            return boundedPercent(100 - usedPercent)
+        }
+        return nil
+    }
+
+    private static func normalizedPercentPair(used: Double?, remaining: Double?) -> (Double, Double)? {
+        guard let used, let remaining else {
+            return nil
+        }
+
+        let pairs = percentCandidates(used).flatMap { usedCandidate in
+            percentCandidates(remaining).map { remainingCandidate in
+                (usedCandidate, remainingCandidate)
+            }
+        }
+        return pairs.min { lhs, rhs in
+            abs((lhs.0 + lhs.1) - 100) < abs((rhs.0 + rhs.1) - 100)
+        }
+    }
+
+    private static func normalizedPercent(_ value: Double?) -> Double? {
+        guard let value else { return nil }
+        if value > 0, value <= 1 {
+            return value * 100
+        }
+        return value
+    }
+
+    private static func percentCandidates(_ value: Double) -> [Double] {
+        guard value > 0, value <= 1 else {
+            return [value]
+        }
+        return [value * 100, value]
+    }
+
+    private static func boundedPercent(_ value: Double) -> Double {
+        let clamped = max(0, min(100, value))
+        return (clamped * 10).rounded() / 10
+    }
+}
+
 struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
     let id: String
     let provider: String
@@ -162,6 +318,7 @@ struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
     let weeklyResetAt: Double?
     let creditsBalance: String?
     let creditsUnlimited: Bool?
+    let modelQuotas: [XlyraModelQuota]
     let lastRefreshAt: String?
     let lastSyncAt: String?
     let expiresAt: String?
@@ -193,6 +350,7 @@ struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
         weeklyResetAt: Double?,
         creditsBalance: String?,
         creditsUnlimited: Bool?,
+        modelQuotas: [XlyraModelQuota] = [],
         lastRefreshAt: String?,
         lastSyncAt: String?,
         expiresAt: String?,
@@ -219,6 +377,7 @@ struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
         self.weeklyResetAt = weeklyResetAt
         self.creditsBalance = creditsBalance
         self.creditsUnlimited = creditsUnlimited
+        self.modelQuotas = modelQuotas
         self.lastRefreshAt = lastRefreshAt
         self.lastSyncAt = lastSyncAt
         self.expiresAt = expiresAt
@@ -235,6 +394,17 @@ struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
     }
 
     var quotaText: String {
+        if modelQuotas.isEmpty == false {
+            let parts = modelQuotas.prefix(2).compactMap { quota -> String? in
+                guard let remainingPercent = quota.remainingDisplayPercent else {
+                    return nil
+                }
+                return "\(quota.shortName) 剩 \(Self.percentText(remainingPercent))"
+            }
+            if parts.isEmpty == false {
+                return parts.joined(separator: " · ")
+            }
+        }
         if let fiveHourRemainingDisplayPercent, let weeklyRemainingDisplayPercent {
             return "5h 剩 \(Self.percentText(fiveHourRemainingDisplayPercent)) · 7d 剩 \(Self.percentText(weeklyRemainingDisplayPercent))"
         }
@@ -283,6 +453,33 @@ struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
         Self.remainingPercent(used: weeklyUsedPercent, remaining: weeklyRemainingPercent)
     }
 
+    var quotaDisplays: [XlyraOAuthQuotaDisplay] {
+        if modelQuotas.isEmpty == false {
+            return modelQuotas.prefix(2).map { quota in
+                XlyraOAuthQuotaDisplay(
+                    title: quota.shortName,
+                    usedPercent: quota.usedDisplayPercent,
+                    remainingPercent: quota.remainingDisplayPercent,
+                    resetAt: quota.resetAt
+                )
+            }
+        }
+        return [
+            XlyraOAuthQuotaDisplay(
+                title: "5h",
+                usedPercent: fiveHourUsedDisplayPercent,
+                remainingPercent: fiveHourRemainingDisplayPercent,
+                resetAt: fiveHourResetAt
+            ),
+            XlyraOAuthQuotaDisplay(
+                title: "7d",
+                usedPercent: weeklyUsedDisplayPercent,
+                remainingPercent: weeklyRemainingDisplayPercent,
+                resetAt: weeklyResetAt
+            )
+        ]
+    }
+
     var stateText: String {
         if isCoolingDown { return "冷却中" }
         if isConnectionUsable == false { return status }
@@ -303,64 +500,11 @@ struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
     }
 
     private static func usedPercent(used: Double?, remaining: Double?) -> Double? {
-        if let (usedPercent, _) = normalizedPercentPair(used: used, remaining: remaining) {
-            return boundedPercent(usedPercent)
-        }
-        if let usedPercent = normalizedPercent(used) {
-            return boundedPercent(usedPercent)
-        }
-        if let remainingPercent = normalizedPercent(remaining) {
-            return boundedPercent(100 - remainingPercent)
-        }
-        return nil
+        XlyraPercentNormalizer.usedPercent(used: used, remaining: remaining)
     }
 
     private static func remainingPercent(used: Double?, remaining: Double?) -> Double? {
-        if let (_, remainingPercent) = normalizedPercentPair(used: used, remaining: remaining) {
-            return boundedPercent(remainingPercent)
-        }
-        if let remainingPercent = normalizedPercent(remaining) {
-            return boundedPercent(remainingPercent)
-        }
-        if let usedPercent = normalizedPercent(used) {
-            return boundedPercent(100 - usedPercent)
-        }
-        return nil
-    }
-
-    private static func normalizedPercentPair(used: Double?, remaining: Double?) -> (Double, Double)? {
-        guard let used, let remaining else {
-            return nil
-        }
-
-        let pairs = percentCandidates(used).flatMap { usedCandidate in
-            percentCandidates(remaining).map { remainingCandidate in
-                (usedCandidate, remainingCandidate)
-            }
-        }
-        return pairs.min { lhs, rhs in
-            abs((lhs.0 + lhs.1) - 100) < abs((rhs.0 + rhs.1) - 100)
-        }
-    }
-
-    private static func normalizedPercent(_ value: Double?) -> Double? {
-        guard let value else { return nil }
-        if value > 0, value <= 1 {
-            return value * 100
-        }
-        return value
-    }
-
-    private static func percentCandidates(_ value: Double) -> [Double] {
-        guard value > 0, value <= 1 else {
-            return [value]
-        }
-        return [value * 100, value]
-    }
-
-    private static func boundedPercent(_ value: Double) -> Double {
-        let clamped = max(0, min(100, value))
-        return (clamped * 10).rounded() / 10
+        XlyraPercentNormalizer.remainingPercent(used: used, remaining: remaining)
     }
 
     private static func percentText(_ value: Double) -> String {
@@ -388,6 +532,7 @@ struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
         case weeklyResetAt = "weekly_reset_at"
         case creditsBalance = "credits_balance"
         case creditsUnlimited = "credits_unlimited"
+        case modelQuotas = "model_quotas"
         case lastRefreshAt = "last_refresh_at"
         case lastSyncAt = "last_sync_at"
         case expiresAt = "expires_at"
@@ -417,6 +562,7 @@ struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
         weeklyResetAt = try container.decodeIfPresent(Double.self, forKey: .weeklyResetAt)
         creditsBalance = try container.decodeIfPresent(String.self, forKey: .creditsBalance)
         creditsUnlimited = try container.decodeIfPresent(Bool.self, forKey: .creditsUnlimited)
+        modelQuotas = try container.decodeIfPresent([XlyraModelQuota].self, forKey: .modelQuotas) ?? []
         lastRefreshAt = try container.decodeIfPresent(String.self, forKey: .lastRefreshAt)
         lastSyncAt = try container.decodeIfPresent(String.self, forKey: .lastSyncAt)
         expiresAt = try container.decodeIfPresent(String.self, forKey: .expiresAt)
@@ -742,13 +888,14 @@ final class XlyraMonitorState: ObservableObject {
     var statusColorName: String {
         if isRefreshing, snapshot == nil { return "yellow" }
         if lastError != nil { return "red" }
-        guard let snapshot else { return lastError == nil ? "gray" : "red" }
-        return snapshot.oauth.liveHealthy > 0 ? "green" : "yellow"
+        if snapshot != nil { return "green" }
+        return "gray"
     }
 
     var title: String {
-        if let snapshot { return snapshot.title }
-        return lastError == nil ? "xLyra 未检查" : "xLyra 连接失败"
+        if lastError != nil { return "xLyra 连接失败" }
+        if snapshot != nil { return "xLyra 已连接" }
+        return isRefreshing ? "xLyra 连接中" : "xLyra 未检查"
     }
 
     func beginRefresh() {
@@ -1320,6 +1467,7 @@ enum XlyraAPISnapshotBuilder {
             weeklyResetAt: double(object, "weekly_reset_at", "quota.weekly.reset_at", "meta.quota.weekly.reset_at", "metadata.quota.weekly.reset_at"),
             creditsBalance: string(object, "credits_balance", "quota.credits.balance", "meta.quota.credits.balance", "metadata.quota.credits.balance"),
             creditsUnlimited: bool(object, "credits_unlimited", "quota.credits.unlimited", "meta.quota.credits.unlimited", "metadata.quota.credits.unlimited"),
+            modelQuotas: oauthModelQuotas(from: object),
             lastRefreshAt: string(object, "last_refresh_at", "lastRefreshAt"),
             lastSyncAt: string(object, "last_sync_at", "lastSyncAt", "site.sync_state.last_synced_at"),
             expiresAt: string(object, "expires_at", "expiresAt"),
@@ -1328,6 +1476,54 @@ enum XlyraAPISnapshotBuilder {
             priority: double(object, "priority", "routing_priority", "site.priority", "site.routing_priority") ?? sitePriority ?? 0,
             isCoolingDown: isCoolingDown
         )
+    }
+
+    private static func oauthModelQuotas(from object: [String: Any]) -> [XlyraModelQuota] {
+        guard string(object, "provider")?.lowercased() == "antigravity" else {
+            return []
+        }
+
+        let modelRows = array(
+            object,
+            "model_quotas",
+            "meta.model_quotas",
+            "metadata.model_quotas",
+            "meta.models",
+            "metadata.models",
+            "site.sync_state.user_summary.user_models.data"
+        )
+        guard modelRows.isEmpty == false else {
+            return []
+        }
+
+        return antigravityQuotaModels.compactMap { targetModel in
+            guard let model = modelRows.first(where: { modelIdentifiers($0).contains(targetModel) }) else {
+                return nil
+            }
+            let modelName = string(model, "quota.name", "capabilities.quota.name", "id", "name", "upstream_model_name", "model") ?? targetModel
+            let displayName = string(model, "quota.display_name", "capabilities.quota.display_name", "display_name", "name") ?? modelName
+            return XlyraModelQuota(
+                model: modelName,
+                displayName: displayName,
+                usedPercent: double(model, "used_percent", "quota.used_percent", "capabilities.quota.used_percent"),
+                remainingPercent: double(model, "remaining_percent", "quota.remaining_percent", "capabilities.quota.remaining_percent"),
+                resetAt: double(model, "reset_at", "quota.reset_at", "capabilities.quota.reset_at")
+                    ?? timestamp(model, "reset_time", "quota.reset_time", "capabilities.quota.reset_time")
+            )
+        }
+    }
+
+    private static func modelIdentifiers(_ model: [String: Any]) -> Set<String> {
+        [
+            string(model, "id"),
+            string(model, "name"),
+            string(model, "upstream_model_name"),
+            string(model, "model"),
+            string(model, "quota.name"),
+            string(model, "capabilities.quota.name")
+        ].compactMap { $0?.lowercased() }.reduce(into: Set<String>()) { result, value in
+            result.insert(value)
+        }
     }
 
     private static func siteSort(_ lhs: XlyraSiteRow, _ rhs: XlyraSiteRow) -> Bool {
@@ -1486,6 +1682,17 @@ enum XlyraAPISnapshotBuilder {
         return nil
     }
 
+    private static func array(_ object: [String: Any], _ keys: String...) -> [[String: Any]] {
+        for key in keys {
+            guard let rawValue = value(object, key) else { continue }
+            let array = arrayPayload(rawValue)
+            if array.isEmpty == false {
+                return array
+            }
+        }
+        return []
+    }
+
     private static func string(_ object: [String: Any], _ keys: String...) -> String? {
         for key in keys {
             guard let rawValue = value(object, key), !(rawValue is NSNull) else { continue }
@@ -1540,6 +1747,16 @@ enum XlyraAPISnapshotBuilder {
         return nil
     }
 
+    private static func timestamp(_ object: [String: Any], _ keys: String...) -> Double? {
+        for key in keys {
+            guard let value = string(object, key) else { continue }
+            if let date = isoDateFormatter.date(from: value) ?? plainISODateFormatter.date(from: value) {
+                return date.timeIntervalSince1970
+            }
+        }
+        return nil
+    }
+
     private static func value(_ object: [String: Any], _ path: String) -> Any? {
         let parts = path.split(separator: ".").map(String.init)
         var current: Any? = object
@@ -1557,6 +1774,13 @@ enum XlyraAPISnapshotBuilder {
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
     }()
+
+    private static let plainISODateFormatter = ISO8601DateFormatter()
+
+    private static let antigravityQuotaModels = [
+        "gemini-pro-agent",
+        "claude-opus-4-6-thinking"
+    ]
 }
 
 enum XlyraMonitorError: Error {

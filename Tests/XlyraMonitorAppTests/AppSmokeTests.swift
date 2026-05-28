@@ -239,6 +239,36 @@ struct AppSmokeTests {
         #expect(site.stateText == "可用")
     }
 
+    @MainActor
+    @Test
+    func testMonitorTitleReflectsConnectionStateInsteadOfBusinessHealth() {
+        let state = XlyraMonitorState()
+        let snapshot = XlyraSnapshot(
+            generatedAt: "2026-05-28T08:00:00.000Z",
+            sites: XlyraSiteSummary(total: 1, healthy: 1, rows: []),
+            oauth: XlyraOAuthSummary(total: 1, healthy: 1, limited: 0, rows: []),
+            apiKeys: XlyraAPIKeySummary(total: 1, active: 1, exhausted: 0, rows: []),
+            requests: XlyraRequestSummary(
+                total: 100,
+                lastHour: 10,
+                last24h: 100,
+                ok24h: 69,
+                failed24h: 31,
+                avgLatency24h: nil
+            ),
+            usage: XlyraUsageSummary(tokens24h: 0, cost24h: 0),
+            errors: [],
+            cooldowns: XlyraCooldownSummary(active: 0)
+        )
+
+        #expect(snapshot.healthLevel == .critical)
+
+        state.applySuccess(snapshot)
+
+        #expect(state.title == "xLyra 已连接")
+        #expect(state.statusColorName == "green")
+    }
+
     @Test
     func testXlyraOAuthQuotaNormalizesFractionalPercentValues() throws {
         let data = """
@@ -579,6 +609,84 @@ struct AppSmokeTests {
         """.data(using: .utf8)!)
 
         #expect(account.quotaProgressColorName(usedPercent: account.fiveHourUsedDisplayPercent) == "gray")
+    }
+
+    @Test
+    func testXlyraAntigravityOAuthParsesTargetModelQuotas() throws {
+        let json = """
+        {
+          "oauth": {
+            "items": [
+              {
+                "id": "oauth-antigravity",
+                "provider": "antigravity",
+                "status": "connected",
+                "account_id": "ag-user",
+                "email": "ag@example.com",
+                "available": true,
+                "limit_reached": false,
+                "meta": {
+                  "models": [
+                    {
+                      "id": "gemini-pro-agent",
+                      "name": "gemini-pro-agent",
+                      "upstream_model_name": "gemini-pro-agent",
+                      "display_name": "Gemini 3.1 Pro (High)",
+                      "quota": {
+                        "name": "gemini-pro-agent",
+                        "display_name": "Gemini 3.1 Pro (High)",
+                        "used_percent": 82,
+                        "remaining_percent": 18,
+                        "reset_time": "2026-06-04T08:25:24Z"
+                      }
+                    },
+                    {
+                      "id": "claude-opus-4-6-thinking",
+                      "name": "claude-opus-4-6-thinking",
+                      "upstream_model_name": "claude-opus-4-6-thinking",
+                      "display_name": "Claude Opus 4.6 (Thinking)",
+                      "quota": {
+                        "name": "claude-opus-4-6-thinking",
+                        "display_name": "Claude Opus 4.6 (Thinking)",
+                        "used_percent": 5,
+                        "remaining_percent": 95,
+                        "reset_at": 1780561524
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "sites": [],
+          "api_keys": [],
+          "dashboard": {},
+          "health_sites": [],
+          "cooldowns": [],
+          "requests": []
+        }
+        """.data(using: .utf8)!
+        let payload = try JSONSerialization.jsonObject(with: json) as! [String: Any]
+
+        let snapshot = try XlyraAPISnapshotBuilder.snapshot(
+            ready: (),
+            version: [:],
+            siteTypes: [],
+            overview: payload["dashboard"]!,
+            oauth: payload["oauth"]!,
+            sites: payload["sites"]!,
+            apiKeys: payload["api_keys"]!,
+            healthSites: payload["health_sites"]!,
+            cooldowns: payload["cooldowns"]!,
+            requests: payload["requests"]!
+        )
+
+        let account = try #require(snapshot.oauth.rows.first)
+        #expect(account.modelQuotas.map(\.model) == ["gemini-pro-agent", "claude-opus-4-6-thinking"])
+        #expect(account.quotaText == "Gemini 剩 18% · Opus 剩 95%")
+        #expect(account.quotaDisplays.map(\.title) == ["Gemini", "Opus"])
+        #expect(account.quotaDisplays.first?.usedPercent == 82)
+        #expect(account.quotaProgressColorName(usedPercent: account.quotaDisplays.first?.usedPercent) == "orange")
     }
 
     @Test

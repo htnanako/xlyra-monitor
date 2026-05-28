@@ -862,22 +862,16 @@ private struct XlyraOAuthRowView: View {
 
             if isExpanded {
                 VStack(alignment: .leading, spacing: 7) {
-                    XlyraOAuthQuotaBar(
-                        title: "5h",
-                        usedPercent: account.fiveHourUsedDisplayPercent,
-                        remainingPercent: account.fiveHourRemainingDisplayPercent,
-                        resetText: XlyraFormat.resetTime(account.fiveHourResetAt),
-                        tint: quotaTint(for: account.fiveHourUsedDisplayPercent),
-                        theme: theme
-                    )
-                    XlyraOAuthQuotaBar(
-                        title: "7d",
-                        usedPercent: account.weeklyUsedDisplayPercent,
-                        remainingPercent: account.weeklyRemainingDisplayPercent,
-                        resetText: XlyraFormat.resetTime(account.weeklyResetAt),
-                        tint: quotaTint(for: account.weeklyUsedDisplayPercent),
-                        theme: theme
-                    )
+                    ForEach(account.quotaDisplays) { quota in
+                        XlyraOAuthQuotaBar(
+                            title: quota.title,
+                            usedPercent: quota.usedPercent,
+                            remainingPercent: quota.remainingPercent,
+                            resetText: XlyraFormat.resetTime(quota.resetAt),
+                            tint: quotaTint(for: quota.usedPercent),
+                            theme: theme
+                        )
+                    }
                 }
 
                 XlyraOAuthMetaGrid(account: account, theme: theme)
@@ -907,7 +901,10 @@ private struct XlyraOAuthRowView: View {
     }
 
     private var compactResetText: String {
-        "5h \(XlyraFormat.resetRemainingTime(account.fiveHourResetAt)) · 7d \(XlyraFormat.resetRemainingTime(account.weeklyResetAt))"
+        let parts = account.quotaDisplays.prefix(2).map { quota in
+            "\(quota.title) \(XlyraFormat.resetRemainingTime(quota.resetAt))"
+        }
+        return parts.isEmpty ? "--" : parts.joined(separator: " · ")
     }
 
     private func quotaTint(for usedPercent: Double?) -> Color {
