@@ -723,6 +723,7 @@ private struct XlyraOAuthPane: View {
     let snapshot: XlyraSnapshot
     let theme: MenuTheme
     @State private var expandedAccountIDs = Set<String>()
+    @State private var remainingResetTimeAccountIDs = Set<String>()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -734,12 +735,19 @@ private struct XlyraOAuthPane: View {
                         XlyraOAuthRowView(
                             account: account,
                             isExpanded: expandedAccountIDs.contains(account.id),
+                            showsRemainingResetTime: remainingResetTimeAccountIDs.contains(account.id),
                             theme: theme
                         ) {
                             if expandedAccountIDs.contains(account.id) {
                                 expandedAccountIDs.remove(account.id)
                             } else {
                                 expandedAccountIDs.insert(account.id)
+                            }
+                        } onToggleResetTime: {
+                            if remainingResetTimeAccountIDs.contains(account.id) {
+                                remainingResetTimeAccountIDs.remove(account.id)
+                            } else {
+                                remainingResetTimeAccountIDs.insert(account.id)
                             }
                         }
                     }
@@ -801,8 +809,10 @@ private struct XlyraEmptyState: View {
 private struct XlyraOAuthRowView: View {
     let account: XlyraOAuthRow
     let isExpanded: Bool
+    let showsRemainingResetTime: Bool
     let theme: MenuTheme
     let onToggle: () -> Void
+    let onToggleResetTime: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -867,7 +877,9 @@ private struct XlyraOAuthRowView: View {
                             title: quota.title,
                             usedPercent: quota.usedPercent,
                             remainingPercent: quota.remainingPercent,
-                            resetText: XlyraFormat.resetTime(quota.resetAt),
+                            resetText: resetText(for: quota),
+                            resetHelpText: resetHelpText,
+                            onToggleResetTime: onToggleResetTime,
                             tint: quotaTint(for: quota.usedPercent),
                             theme: theme
                         )
@@ -902,9 +914,24 @@ private struct XlyraOAuthRowView: View {
 
     private var compactResetText: String {
         let parts = account.quotaDisplays.prefix(2).map { quota in
-            "\(quota.title) \(XlyraFormat.resetRemainingTime(quota.resetAt))"
+            "\(quota.title) \(compactResetValue(for: quota))"
         }
         return parts.isEmpty ? "--" : parts.joined(separator: " · ")
+    }
+
+    private var resetHelpText: String {
+        showsRemainingResetTime ? "显示具体重置时间" : "显示剩余重置时间"
+    }
+
+    private func compactResetValue(for quota: XlyraOAuthQuotaDisplay) -> String {
+        showsRemainingResetTime ? XlyraFormat.resetRemainingTime(quota.resetAt) : XlyraFormat.resetTime(quota.resetAt)
+    }
+
+    private func resetText(for quota: XlyraOAuthQuotaDisplay) -> String {
+        if showsRemainingResetTime {
+            return "剩余 \(XlyraFormat.resetRemainingTime(quota.resetAt))"
+        }
+        return "重置 \(XlyraFormat.resetTime(quota.resetAt))"
     }
 
     private func quotaTint(for usedPercent: Double?) -> Color {
@@ -917,6 +944,8 @@ private struct XlyraOAuthQuotaBar: View {
     let usedPercent: Double?
     let remainingPercent: Double?
     let resetText: String
+    let resetHelpText: String
+    let onToggleResetTime: () -> Void
     let tint: Color
     let theme: MenuTheme
 
@@ -940,11 +969,15 @@ private struct XlyraOAuthQuotaBar: View {
 
                 Spacer(minLength: 6)
 
-                Text("重置 \(resetText)")
-                    .font(.system(size: 11, weight: .medium).monospacedDigit())
-                    .foregroundStyle(theme.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
+                Button(action: onToggleResetTime) {
+                    Text(resetText)
+                        .font(.system(size: 11, weight: .medium).monospacedDigit())
+                        .foregroundStyle(theme.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+                }
+                .buttonStyle(.plain)
+                .help(resetHelpText)
             }
 
             XlyraUsageBar(progress: usedFraction, tint: tint, track: theme.control)
@@ -1733,10 +1766,10 @@ private enum XlyraFormat {
         let minutes = totalMinutes % 60
 
         if days > 0 {
-            return hours > 0 ? "\(days)d\(hours)h" : "\(days)d"
+            return hours > 0 ? "\(days)d \(hours)h" : "\(days)d"
         }
         if hours > 0 {
-            return minutes > 0 ? "\(hours)h\(minutes)m" : "\(hours)h"
+            return minutes > 0 ? "\(hours)h \(minutes)m" : "\(hours)h"
         }
         return "\(max(1, minutes))m"
     }
