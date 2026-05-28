@@ -1,0 +1,14 @@
+.build/
+.swiftpm/
+DerivedData/
+*.xcuserdata/
+.DS_Store
+*.dmg
+*.zip
+AGENTS.md
+API-user*.md
+docs/superpowers/
+*.env
+*.pem
+*.key
+*.mobileprovision
