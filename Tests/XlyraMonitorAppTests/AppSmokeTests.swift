@@ -10,12 +10,12 @@ struct AppSmokeTests {
     func testAppTargetExposesMenuBarMetadata() {
         #expect(XlyraMonitorAppMetadata.menuBarTitle == "xLyra")
         #expect(XlyraMonitorAppMetadata.menuBarLabel == "xLyra 监控")
-        #expect(XlyraMonitorAppMetadata.fallbackVersion == "0.1.2")
+        #expect(XlyraMonitorAppMetadata.fallbackVersion == "0.1.3")
     }
 
     @Test
     func testUpdateVersionComparisonHandlesTags() {
-        #expect(XlyraVersionComparator.isVersion("v0.1.2", newerThan: "0.1.0"))
+        #expect(XlyraVersionComparator.isVersion("v0.1.3", newerThan: "0.1.0"))
         #expect(XlyraVersionComparator.isVersion("0.10.0", newerThan: "0.9.9"))
         #expect(XlyraVersionComparator.isVersion("0.1.0", newerThan: "0.1.0") == false)
         #expect(XlyraVersionComparator.isVersion("0.0.9", newerThan: "0.1.0") == false)

@@ -506,6 +506,7 @@ private struct XlyraMenuScrollView<Content: View>: View {
             content
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .padding(.trailing, 8)
+                .padding(.vertical, 1)
         }
         .scrollIndicators(.visible)
         .scrollBounceBehavior(.always, axes: .vertical)
@@ -856,7 +857,8 @@ private struct XlyraOAuthRowView: View {
             RoundedRectangle(cornerRadius: 8)
                 .fill(theme.card)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: 7)
+                        .inset(by: 0.5)
                         .stroke(account.isHealthy ? theme.separator : theme.red.opacity(0.45), lineWidth: 1)
                 )
         )
@@ -1066,7 +1068,8 @@ private struct XlyraSiteRowView: View {
             RoundedRectangle(cornerRadius: 8)
                 .fill(theme.card)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: 7)
+                        .inset(by: 0.5)
                         .stroke(site.isHealthy ? theme.separator : theme.red.opacity(0.45), lineWidth: 1)
                 )
         )
@@ -1146,27 +1149,6 @@ private struct XlyraAPIKeyRowView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 9)
-        .background(RoundedRectangle(cornerRadius: 8).fill(theme.card))
-    }
-}
-
-private struct XlyraErrorRowView: View {
-    let error: XlyraErrorRow
-    let theme: MenuTheme
-
-    var body: some View {
-        HStack {
-            Text(error.errorType)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(theme.text)
-                .lineLimit(1)
-            Spacer()
-            Text("\(error.count)")
-                .font(.system(size: 12, weight: .bold).monospacedDigit())
-                .foregroundStyle(theme.red)
-        }
-        .padding(.horizontal, 10)
-        .frame(height: 28)
         .background(RoundedRectangle(cornerRadius: 8).fill(theme.card))
     }
 }
