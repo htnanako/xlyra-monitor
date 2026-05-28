@@ -185,9 +185,9 @@ enum XlyraMenuBarImageRenderer {
             palette: palette
         )
         drawRow(
-            label: "5h",
+            label: snapshot.oauth.primaryCapacityLabel,
             value: fiveHourCapacity.shortText,
-            progress: fiveHourCapacity.usedFraction,
+            progress: fiveHourCapacity.remainingFraction,
             tint: MenuBarStatusColorRenderer.color(for: fiveHourCapacity.riskColorName),
             palette: palette,
             labelX: labelX,
@@ -199,9 +199,9 @@ enum XlyraMenuBarImageRenderer {
             y: 12
         )
         drawRow(
-            label: "7d",
+            label: snapshot.oauth.secondaryCapacityLabel,
             value: weeklyCapacity.shortText,
-            progress: weeklyCapacity.usedFraction,
+            progress: weeklyCapacity.remainingFraction,
             tint: MenuBarStatusColorRenderer.color(for: weeklyCapacity.riskColorName),
             palette: palette,
             labelX: labelX,
@@ -846,22 +846,16 @@ private struct XlyraOAuthRowView: View {
 
             if isExpanded {
                 VStack(alignment: .leading, spacing: 7) {
-                    XlyraOAuthQuotaBar(
-                        title: "5h",
-                        usedPercent: account.fiveHourUsedDisplayPercent,
-                        remainingPercent: account.fiveHourRemainingDisplayPercent,
-                        resetText: XlyraFormat.resetTime(account.fiveHourResetAt),
-                        tint: quotaTint(for: account.fiveHourUsedDisplayPercent),
-                        theme: theme
-                    )
-                    XlyraOAuthQuotaBar(
-                        title: "7d",
-                        usedPercent: account.weeklyUsedDisplayPercent,
-                        remainingPercent: account.weeklyRemainingDisplayPercent,
-                        resetText: XlyraFormat.resetTime(account.weeklyResetAt),
-                        tint: quotaTint(for: account.weeklyUsedDisplayPercent),
-                        theme: theme
-                    )
+                    ForEach(account.quotaDisplays) { quota in
+                        XlyraOAuthQuotaBar(
+                            title: quota.title,
+                            usedPercent: quota.usedPercent,
+                            remainingPercent: quota.remainingPercent,
+                            resetText: XlyraFormat.resetTime(quota.resetAt),
+                            tint: quotaTint(for: quota.remainingPercent),
+                            theme: theme
+                        )
+                    }
                 }
 
                 XlyraOAuthMetaGrid(account: account, theme: theme)
@@ -891,11 +885,14 @@ private struct XlyraOAuthRowView: View {
     }
 
     private var compactResetText: String {
-        "5h \(XlyraFormat.resetRemainingTime(account.fiveHourResetAt)) · 7d \(XlyraFormat.resetRemainingTime(account.weeklyResetAt))"
+        let parts = account.quotaDisplays.prefix(2).map { quota in
+            "\(quota.title) \(XlyraFormat.resetRemainingTime(quota.resetAt))"
+        }
+        return parts.isEmpty ? "--" : parts.joined(separator: " · ")
     }
 
-    private func quotaTint(for usedPercent: Double?) -> Color {
-        theme.color(forRiskName: account.quotaProgressColorName(usedPercent: usedPercent))
+    private func quotaTint(for remainingPercent: Double?) -> Color {
+        theme.color(forRiskName: account.quotaProgressColorName(remainingPercent: remainingPercent))
     }
 }
 
@@ -934,7 +931,7 @@ private struct XlyraOAuthQuotaBar: View {
                     .minimumScaleFactor(0.82)
             }
 
-            XlyraUsageBar(progress: usedFraction, tint: tint, track: theme.control)
+            XlyraUsageBar(progress: remainingFraction, tint: tint, track: theme.control)
                 .frame(height: 6)
         }
         .padding(.horizontal, 9)
@@ -945,9 +942,9 @@ private struct XlyraOAuthQuotaBar: View {
         )
     }
 
-    private var usedFraction: Double {
-        guard let usedPercent else { return 0 }
-        return max(0, min(1, usedPercent / 100))
+    private var remainingFraction: Double {
+        guard let remainingPercent else { return 0 }
+        return max(0, min(1, remainingPercent / 100))
     }
 
     private var remainingText: String {
