@@ -10,7 +10,7 @@ struct AppSmokeTests {
     func testAppTargetExposesMenuBarMetadata() {
         #expect(XlyraMonitorAppMetadata.menuBarTitle == "xLyra")
         #expect(XlyraMonitorAppMetadata.menuBarLabel == "xLyra 监控")
-        #expect(XlyraMonitorAppMetadata.fallbackVersion == "0.1.0")
+        #expect(XlyraMonitorAppMetadata.fallbackVersion == "0.1.1")
     }
 
     @Test
