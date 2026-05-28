@@ -46,11 +46,11 @@ struct MenuTheme {
 
     init(mode: AppThemeMode, systemColorScheme: ColorScheme) {
         isDark = mode.resolvesToDark(systemColorScheme: systemColorScheme)
-        background = isDark ? Color(red: 0.08, green: 0.09, blue: 0.10) : Color(red: 0.96, green: 0.97, blue: 0.98)
-        card = isDark ? Color(red: 0.13, green: 0.14, blue: 0.15) : .white
-        elevatedCard = isDark ? Color(red: 0.18, green: 0.19, blue: 0.20) : Color(red: 0.98, green: 0.99, blue: 1.0)
-        control = isDark ? Color.white.opacity(0.10) : Color.black.opacity(0.06)
-        separator = isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.10)
+        background = .clear
+        card = isDark ? Color.white.opacity(0.08) : Color.white.opacity(0.48)
+        elevatedCard = isDark ? Color.white.opacity(0.12) : Color.white.opacity(0.62)
+        control = isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.07)
+        separator = isDark ? Color.white.opacity(0.13) : Color.black.opacity(0.10)
         text = isDark ? .white : Color(red: 0.10, green: 0.11, blue: 0.13)
         secondary = isDark ? Color.white.opacity(0.62) : Color.black.opacity(0.58)
         tertiary = isDark ? Color.white.opacity(0.42) : Color.black.opacity(0.42)
@@ -435,7 +435,7 @@ struct XlyraStatusMenuView: View {
         }
         .padding(12)
         .frame(width: XlyraMenuLayout.width)
-        .background(theme.background)
+        .background(.regularMaterial)
         .preferredColorScheme(preferences.themeMode.preferredColorScheme)
     }
 

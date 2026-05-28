@@ -234,6 +234,36 @@ struct AppSmokeTests {
     }
 
     @Test
+    @MainActor
+    func testMonitorTitleReflectsConnectionStateInsteadOfBusinessHealth() {
+        let state = XlyraMonitorState()
+        let snapshot = XlyraSnapshot(
+            generatedAt: "2026-05-28T08:00:00.000Z",
+            sites: XlyraSiteSummary(total: 1, healthy: 1, rows: []),
+            oauth: XlyraOAuthSummary(total: 1, healthy: 1, limited: 0, rows: []),
+            apiKeys: XlyraAPIKeySummary(total: 1, active: 1, exhausted: 0, rows: []),
+            requests: XlyraRequestSummary(
+                total: 100,
+                lastHour: 10,
+                last24h: 100,
+                ok24h: 69,
+                failed24h: 31,
+                avgLatency24h: nil
+            ),
+            usage: XlyraUsageSummary(tokens24h: 0, cost24h: 0),
+            errors: [],
+            cooldowns: XlyraCooldownSummary(active: 0)
+        )
+
+        #expect(snapshot.healthLevel == .critical)
+
+        state.applySuccess(snapshot)
+
+        #expect(state.title == "xLyra 已连接")
+        #expect(state.statusColorName == "green")
+    }
+
+    @Test
     func testXlyraOAuthQuotaNormalizesFractionalPercentValues() throws {
         let data = """
         {

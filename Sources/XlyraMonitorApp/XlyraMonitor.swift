@@ -664,17 +664,6 @@ struct XlyraSnapshot: Decodable, Equatable {
         return .healthy
     }
 
-    var title: String {
-        switch healthLevel {
-        case .healthy:
-            return "xLyra 正常"
-        case .warning:
-            return "xLyra 监控"
-        case .critical:
-            return "xLyra 异常"
-        }
-    }
-
     var abnormalItemCount: Int {
         riskItems.count
     }
@@ -742,13 +731,14 @@ final class XlyraMonitorState: ObservableObject {
     var statusColorName: String {
         if isRefreshing, snapshot == nil { return "yellow" }
         if lastError != nil { return "red" }
-        guard let snapshot else { return lastError == nil ? "gray" : "red" }
-        return snapshot.oauth.liveHealthy > 0 ? "green" : "yellow"
+        if snapshot != nil { return "green" }
+        return "gray"
     }
 
     var title: String {
-        if let snapshot { return snapshot.title }
-        return lastError == nil ? "xLyra 未检查" : "xLyra 连接失败"
+        if lastError != nil { return "xLyra 连接失败" }
+        if snapshot != nil { return "xLyra 已连接" }
+        return isRefreshing ? "xLyra 连接中" : "xLyra 未检查"
     }
 
     func beginRefresh() {
