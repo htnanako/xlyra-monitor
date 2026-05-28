@@ -132,16 +132,6 @@ struct SettingsTextFieldRow<Content: View>: View {
     }
 }
 
-private enum XlyraUpdateStatus: Equatable {
-    case idle
-    case checking
-    case upToDate
-    case available(XlyraAppUpdate)
-    case downloading(XlyraAppUpdate)
-    case downloaded(URL)
-    case failed(String)
-}
-
 struct XlyraMenuBarLabel: View {
     @ObservedObject var state: XlyraMonitorState
     @ObservedObject var preferences: AppPreferences
@@ -334,6 +324,7 @@ struct XlyraStatusMenuView: View {
     @ObservedObject var preferences: AppPreferences
     let monitorPreferences: XlyraMonitorPreferences
     let monitor: XlyraMonitor
+    @ObservedObject var updateCoordinator: XlyraAppUpdateCoordinator
 
     @Environment(\.openWindow) private var openWindow
     @Environment(\.colorScheme) private var colorScheme
@@ -361,6 +352,7 @@ struct XlyraStatusMenuView: View {
                     snapshot: snapshot,
                     state: state,
                     monitor: monitor,
+                    updateCoordinator: updateCoordinator,
                     theme: theme
                 )
 
@@ -659,11 +651,24 @@ private struct XlyraDetailHeader: View {
     let snapshot: XlyraSnapshot
     @ObservedObject var state: XlyraMonitorState
     let monitor: XlyraMonitor
+    @ObservedObject var updateCoordinator: XlyraAppUpdateCoordinator
     let theme: MenuTheme
 
     var body: some View {
         HStack(spacing: 8) {
             XlyraSectionHeader(title: title, detail: detail, theme: theme)
+
+            if let update = updateCoordinator.updateStatus.availableUpdate {
+                Button {
+                    updateCoordinator.installAvailableUpdate()
+                } label: {
+                    Label(updateButtonTitle(for: update), systemImage: "arrow.down.circle.fill")
+                }
+                .help("更新到 \(update.version)")
+                .disabled(updateCoordinator.updateStatus.isBusy)
+                .buttonStyle(MenuToolButtonStyle(theme: theme))
+                .controlSize(.small)
+            }
 
             if selectedTab == .oauth {
                 Button {
@@ -677,6 +682,17 @@ private struct XlyraDetailHeader: View {
                 .buttonStyle(MenuToolButtonStyle(theme: theme))
                 .controlSize(.small)
             }
+        }
+    }
+
+    private func updateButtonTitle(for update: XlyraAppUpdate) -> String {
+        switch updateCoordinator.updateStatus {
+        case .downloading:
+            return "下载中"
+        case .installing:
+            return "安装中"
+        default:
+            return "更新"
         }
     }
 
@@ -1223,7 +1239,7 @@ struct XlyraSettingsWindowView: View {
     let monitorPreferences: XlyraMonitorPreferences
     let monitor: XlyraMonitor
     let loginItem: LoginItemService
-    private let updateService = XlyraAppUpdateService()
+    @ObservedObject var updateCoordinator: XlyraAppUpdateCoordinator
 
     @State private var consoleURLText = ""
     @State private var adminAccessTokenText = ""
@@ -1232,7 +1248,6 @@ struct XlyraSettingsWindowView: View {
     @State private var themeMode: AppThemeMode = .automatic
     @State private var launchAtLogin = false
     @State private var message: String?
-    @State private var updateStatus: XlyraUpdateStatus = .idle
     @State private var savedConsoleURLText = ""
     @State private var savedStatusRefreshIntervalText = "30"
     @State private var savedOAuthRefreshIntervalText = "300"
@@ -1341,7 +1356,7 @@ struct XlyraSettingsWindowView: View {
                 } label: {
                     Label(checkUpdateButtonTitle, systemImage: "arrow.down.circle")
                 }
-                .disabled(isCheckingOrDownloading)
+                .disabled(updateCoordinator.updateStatus.isBusy)
             }
 
             if let update = updateForAction {
@@ -1353,11 +1368,11 @@ struct XlyraSettingsWindowView: View {
                     Spacer()
 
                     Button {
-                        NSWorkspace.shared.open(update.releasePageURL)
+                        updateCoordinator.installAvailableUpdate()
                     } label: {
-                        Label("发布页", systemImage: "safari")
+                        Label(installUpdateButtonTitle, systemImage: "arrow.down.circle.fill")
                     }
-                    .disabled(isCheckingOrDownloading)
+                    .disabled(updateCoordinator.updateStatus.isBusy)
                 }
             }
 
@@ -1370,28 +1385,29 @@ struct XlyraSettingsWindowView: View {
     }
 
     private var checkUpdateButtonTitle: String {
-        if case .checking = updateStatus { return "检查中" }
-        if case .downloading = updateStatus { return "下载中" }
-        return "检查并下载"
+        if case .checking = updateCoordinator.updateStatus { return "检查中" }
+        if case .downloading = updateCoordinator.updateStatus { return "下载中" }
+        if case .installing = updateCoordinator.updateStatus { return "安装中" }
+        return "检查更新"
     }
 
-    private var isCheckingOrDownloading: Bool {
-        if case .checking = updateStatus { return true }
-        if case .downloading = updateStatus { return true }
-        return false
-    }
-
-    private var updateForAction: XlyraAppUpdate? {
-        switch updateStatus {
-        case .available(let update), .downloading(let update):
-            return update
+    private var installUpdateButtonTitle: String {
+        switch updateCoordinator.updateStatus {
+        case .downloading:
+            return "下载中"
+        case .installing:
+            return "安装中"
         default:
-            return nil
+            return "立即更新"
         }
     }
 
+    private var updateForAction: XlyraAppUpdate? {
+        updateCoordinator.updateStatus.availableUpdate
+    }
+
     private var updateMessage: String? {
-        switch updateStatus {
+        switch updateCoordinator.updateStatus {
         case .idle:
             return nil
         case .checking:
@@ -1399,51 +1415,24 @@ struct XlyraSettingsWindowView: View {
         case .upToDate:
             return "当前已是最新版本"
         case .available(let update):
-            return "\(update.releaseName) 可用，准备下载"
+            return "\(update.releaseName) 可用"
         case .downloading:
             return "正在下载 DMG"
-        case .downloaded(let url):
-            return "已下载到 \(url.lastPathComponent)，并已打开安装包"
+        case .installing:
+            return "正在安装更新，App 将自动重启"
         case .failed(let message):
             return message
         }
     }
 
     private var updateMessageIsError: Bool {
-        if case .failed = updateStatus { return true }
+        if case .failed = updateCoordinator.updateStatus { return true }
         return false
     }
 
     private func checkForUpdate() {
-        updateStatus = .checking
         Task { @MainActor in
-            do {
-                if let update = try await updateService.latestUpdate(currentVersion: XlyraMonitorAppMetadata.appVersion) {
-                    updateStatus = .available(update)
-                    download(update)
-                } else {
-                    updateStatus = .upToDate
-                }
-            } catch let error as XlyraAppUpdateError {
-                updateStatus = .failed(error.message)
-            } catch {
-                updateStatus = .failed("检查更新失败")
-            }
-        }
-    }
-
-    private func download(_ update: XlyraAppUpdate) {
-        updateStatus = .downloading(update)
-        Task { @MainActor in
-            do {
-                let downloadedURL = try await updateService.download(update)
-                updateStatus = .downloaded(downloadedURL)
-                NSWorkspace.shared.open(downloadedURL)
-            } catch let error as XlyraAppUpdateError {
-                updateStatus = .failed(error.message)
-            } catch {
-                updateStatus = .failed("下载更新失败")
-            }
+            await updateCoordinator.checkForUpdate()
         }
     }
 

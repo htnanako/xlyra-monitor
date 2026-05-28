@@ -5,7 +5,7 @@ public enum XlyraMonitorAppMetadata {
     static let menuBarLabel = "xLyra 监控"
     static let systemImageName = "gauge.with.dots.needle.67percent"
     static let appIconName = "XlyraMonitorIcon"
-    static let fallbackVersion = "0.1.4"
+    static let fallbackVersion = "0.1.5"
 
     static var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? fallbackVersion
@@ -22,7 +22,8 @@ struct XlyraMonitorApp: App {
                 state: container.state,
                 preferences: container.appPreferences,
                 monitorPreferences: container.monitorPreferences,
-                monitor: container.monitor
+                monitor: container.monitor,
+                updateCoordinator: container.updateCoordinator
             )
         } label: {
             ThemedSceneContent(preferences: container.appPreferences) {
@@ -37,7 +38,8 @@ struct XlyraMonitorApp: App {
                     preferences: container.appPreferences,
                     monitorPreferences: container.monitorPreferences,
                     monitor: container.monitor,
-                    loginItem: container.loginItem
+                    loginItem: container.loginItem,
+                    updateCoordinator: container.updateCoordinator
                 )
             }
         }

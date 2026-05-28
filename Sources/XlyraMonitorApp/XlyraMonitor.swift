@@ -1703,6 +1703,7 @@ final class XlyraAppContainer: ObservableObject {
     let appPreferences = AppPreferences()
     let monitorPreferences = XlyraMonitorPreferences()
     let loginItem = LoginItemService()
+    let updateCoordinator = XlyraAppUpdateCoordinator()
     let monitor: XlyraMonitor
     private var cancellables = Set<AnyCancellable>()
 
@@ -1744,6 +1745,7 @@ final class XlyraAppContainer: ObservableObject {
             statusInterval: appPreferences.refreshIntervalSeconds,
             oauthInterval: appPreferences.oauthRefreshIntervalSeconds
         )
+        updateCoordinator.startAutomaticChecks()
         applyAppIcon()
         keepAppOutOfDock()
     }

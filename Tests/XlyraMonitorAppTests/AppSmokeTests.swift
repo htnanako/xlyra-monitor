@@ -10,12 +10,12 @@ struct AppSmokeTests {
     func testAppTargetExposesMenuBarMetadata() {
         #expect(XlyraMonitorAppMetadata.menuBarTitle == "xLyra")
         #expect(XlyraMonitorAppMetadata.menuBarLabel == "xLyra 监控")
-        #expect(XlyraMonitorAppMetadata.fallbackVersion == "0.1.4")
+        #expect(XlyraMonitorAppMetadata.fallbackVersion == "0.1.5")
     }
 
     @Test
     func testUpdateVersionComparisonHandlesTags() {
-        #expect(XlyraVersionComparator.isVersion("v0.1.4", newerThan: "0.1.0"))
+        #expect(XlyraVersionComparator.isVersion("v0.1.5", newerThan: "0.1.0"))
         #expect(XlyraVersionComparator.isVersion("0.10.0", newerThan: "0.9.9"))
         #expect(XlyraVersionComparator.isVersion("0.1.0", newerThan: "0.1.0") == false)
         #expect(XlyraVersionComparator.isVersion("0.0.9", newerThan: "0.1.0") == false)
@@ -63,6 +63,12 @@ struct AppSmokeTests {
 
         #expect(release.tagName == "v0.2.0")
         #expect(release.assets.first?.name == "xLyra-Monitor-0.2.0.dmg")
+    }
+
+    @MainActor
+    @Test
+    func testAutomaticUpdateChecksRunEveryFiveMinutes() {
+        #expect(XlyraAppUpdateCoordinator.automaticCheckInterval == 300)
     }
 
     @Test
@@ -658,7 +664,8 @@ struct AppSmokeTests {
             state: state,
             preferences: preferences,
             monitorPreferences: monitorPreferences,
-            monitor: monitor
+            monitor: monitor,
+            updateCoordinator: XlyraAppUpdateCoordinator()
         )
 
         let hostingView = NSHostingView(rootView: view)
