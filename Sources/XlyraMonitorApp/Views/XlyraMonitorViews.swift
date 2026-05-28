@@ -6,6 +6,7 @@ private enum XlyraMenuLayout {
     static let scrollBaseMaxHeight: CGFloat = 320
     static let scrollMaxHeight: CGFloat = scrollBaseMaxHeight * 1.3
     static let scrollMinHeight: CGFloat = 72
+    static let scrollVerticalInset: CGFloat = 3
 }
 
 enum XlyraDetailTab: String, CaseIterable, Identifiable {
@@ -41,6 +42,7 @@ struct MenuTheme {
     let yellow: Color
     let orange: Color
     let red: Color
+    let disabledProgress: Color
 
     init(mode: AppThemeMode, systemColorScheme: ColorScheme) {
         isDark = mode.resolvesToDark(systemColorScheme: systemColorScheme)
@@ -52,27 +54,49 @@ struct MenuTheme {
         text = isDark ? .white : Color(red: 0.10, green: 0.11, blue: 0.13)
         secondary = isDark ? Color.white.opacity(0.62) : Color.black.opacity(0.58)
         tertiary = isDark ? Color.white.opacity(0.42) : Color.black.opacity(0.42)
-        green = Color(red: 0.18, green: 0.70, blue: 0.38)
-        yellow = Color(red: 0.82, green: 0.63, blue: 0.10)
-        orange = Color(red: 0.93, green: 0.43, blue: 0.16)
-        red = Color(red: 0.88, green: 0.21, blue: 0.24)
+        green = XlyraRiskPalette.color(forRiskName: "green", fallback: .secondary)
+        yellow = XlyraRiskPalette.color(forRiskName: "yellow", fallback: .secondary)
+        orange = XlyraRiskPalette.color(forRiskName: "orange", fallback: .secondary)
+        red = XlyraRiskPalette.color(forRiskName: "red", fallback: .secondary)
+        disabledProgress = isDark ? Color.white.opacity(0.28) : Color.black.opacity(0.22)
+    }
+
+    func color(forRiskName riskColorName: String) -> Color {
+        XlyraRiskPalette.color(forRiskName: riskColorName, fallback: disabledProgress)
+    }
+}
+
+private enum XlyraRiskPalette {
+    static func color(forRiskName riskColorName: String, fallback: Color) -> Color {
+        guard let nsColor = nsColor(forRiskName: riskColorName) else {
+            return fallback
+        }
+        return Color(nsColor: nsColor)
+    }
+
+    static func nsColor(forRiskName riskColorName: String, fallback: NSColor = .systemGray) -> NSColor {
+        nsColor(forRiskName: riskColorName) ?? fallback
+    }
+
+    private static func nsColor(forRiskName riskColorName: String) -> NSColor? {
+        switch riskColorName {
+        case "green":
+            return NSColor(calibratedRed: 0.18, green: 0.70, blue: 0.38, alpha: 1)
+        case "yellow":
+            return NSColor(calibratedRed: 0.82, green: 0.63, blue: 0.10, alpha: 1)
+        case "orange":
+            return NSColor(calibratedRed: 0.93, green: 0.43, blue: 0.16, alpha: 1)
+        case "red":
+            return NSColor(calibratedRed: 0.88, green: 0.21, blue: 0.24, alpha: 1)
+        default:
+            return nil
+        }
     }
 }
 
 enum MenuBarQuotaImageRenderer {
     static func color(for colorName: String) -> NSColor {
-        switch colorName {
-        case "green":
-            return NSColor.systemGreen
-        case "yellow":
-            return NSColor.systemYellow
-        case "orange":
-            return NSColor.systemOrange
-        case "red":
-            return NSColor.systemRed
-        default:
-            return NSColor.systemGray
-        }
+        XlyraRiskPalette.nsColor(forRiskName: colorName)
     }
 }
 
@@ -351,7 +375,6 @@ struct XlyraStatusMenuView: View {
                             XlyraAPIKeysPane(snapshot: snapshot, theme: theme)
                         }
                     }
-                    .padding(.trailing, 2)
                     .background(XlyraDetailContentHeightReader())
                 }
                 .frame(height: detailHeight)
@@ -418,7 +441,8 @@ struct XlyraStatusMenuView: View {
 
     private func detailFrameHeight(snapshot: XlyraSnapshot, tab: XlyraDetailTab) -> CGFloat {
         let measuredHeight = detailContentHeights[tab]
-        let contentHeight = measuredHeight ?? estimatedDetailContentHeight(snapshot: snapshot, tab: tab)
+        let contentHeight = (measuredHeight ?? estimatedDetailContentHeight(snapshot: snapshot, tab: tab))
+            + XlyraMenuLayout.scrollVerticalInset * 2
         return min(max(contentHeight, XlyraMenuLayout.scrollMinHeight), XlyraMenuLayout.scrollMaxHeight)
     }
 
@@ -505,8 +529,9 @@ private struct XlyraMenuScrollView<Content: View>: View {
         ScrollView(.vertical) {
             content
                 .frame(maxWidth: .infinity, alignment: .topLeading)
-                .padding(.trailing, 8)
-                .padding(.vertical, 1)
+                .padding(.horizontal, 1)
+                .padding(.trailing, 12)
+                .padding(.vertical, XlyraMenuLayout.scrollVerticalInset)
         }
         .scrollIndicators(.visible)
         .scrollBounceBehavior(.always, axes: .vertical)
@@ -553,16 +578,7 @@ private struct XlyraSummaryView: View {
     }
 
     private var statusColor: Color {
-        switch state.statusColorName {
-        case "green":
-            return theme.green
-        case "yellow":
-            return theme.orange
-        case "red":
-            return theme.red
-        default:
-            return theme.secondary
-        }
+        theme.color(forRiskName: state.statusColorName)
     }
 
     private var siteText: String {
@@ -835,7 +851,7 @@ private struct XlyraOAuthRowView: View {
                         usedPercent: account.fiveHourUsedDisplayPercent,
                         remainingPercent: account.fiveHourRemainingDisplayPercent,
                         resetText: XlyraFormat.resetTime(account.fiveHourResetAt),
-                        tint: quotaTint(usedPercent: account.fiveHourUsedDisplayPercent),
+                        tint: quotaTint(for: account.fiveHourUsedDisplayPercent),
                         theme: theme
                     )
                     XlyraOAuthQuotaBar(
@@ -843,7 +859,7 @@ private struct XlyraOAuthRowView: View {
                         usedPercent: account.weeklyUsedDisplayPercent,
                         remainingPercent: account.weeklyRemainingDisplayPercent,
                         resetText: XlyraFormat.resetTime(account.weeklyResetAt),
-                        tint: quotaTint(usedPercent: account.weeklyUsedDisplayPercent),
+                        tint: quotaTint(for: account.weeklyUsedDisplayPercent),
                         theme: theme
                     )
                 }
@@ -857,9 +873,8 @@ private struct XlyraOAuthRowView: View {
             RoundedRectangle(cornerRadius: 8)
                 .fill(theme.card)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 7)
-                        .inset(by: 0.5)
-                        .stroke(account.isHealthy ? theme.separator : theme.red.opacity(0.45), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(account.isHealthy ? theme.separator : theme.red.opacity(0.45), lineWidth: 1)
                 )
         )
     }
@@ -879,20 +894,8 @@ private struct XlyraOAuthRowView: View {
         "5h \(XlyraFormat.resetRemainingTime(account.fiveHourResetAt)) · 7d \(XlyraFormat.resetRemainingTime(account.weeklyResetAt))"
     }
 
-    private func quotaTint(usedPercent: Double?) -> Color {
-        guard account.isHealthy, let usedPercent else {
-            return account.isHealthy ? theme.secondary : theme.red
-        }
-        switch usedPercent {
-        case 91...:
-            return theme.red
-        case 81..<91:
-            return theme.orange
-        case 61..<81:
-            return Color.yellow
-        default:
-            return theme.green
-        }
+    private func quotaTint(for usedPercent: Double?) -> Color {
+        theme.color(forRiskName: account.quotaProgressColorName(usedPercent: usedPercent))
     }
 }
 
@@ -1068,9 +1071,8 @@ private struct XlyraSiteRowView: View {
             RoundedRectangle(cornerRadius: 8)
                 .fill(theme.card)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 7)
-                        .inset(by: 0.5)
-                        .stroke(site.isHealthy ? theme.separator : theme.red.opacity(0.45), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(site.isHealthy ? theme.separator : theme.red.opacity(0.45), lineWidth: 1)
                 )
         )
     }

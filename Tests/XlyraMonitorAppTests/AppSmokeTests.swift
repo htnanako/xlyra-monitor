@@ -10,12 +10,12 @@ struct AppSmokeTests {
     func testAppTargetExposesMenuBarMetadata() {
         #expect(XlyraMonitorAppMetadata.menuBarTitle == "xLyra")
         #expect(XlyraMonitorAppMetadata.menuBarLabel == "xLyra 监控")
-        #expect(XlyraMonitorAppMetadata.fallbackVersion == "0.1.3")
+        #expect(XlyraMonitorAppMetadata.fallbackVersion == "0.1.4")
     }
 
     @Test
     func testUpdateVersionComparisonHandlesTags() {
-        #expect(XlyraVersionComparator.isVersion("v0.1.3", newerThan: "0.1.0"))
+        #expect(XlyraVersionComparator.isVersion("v0.1.4", newerThan: "0.1.0"))
         #expect(XlyraVersionComparator.isVersion("0.10.0", newerThan: "0.9.9"))
         #expect(XlyraVersionComparator.isVersion("0.1.0", newerThan: "0.1.0") == false)
         #expect(XlyraVersionComparator.isVersion("0.0.9", newerThan: "0.1.0") == false)
@@ -521,17 +521,58 @@ struct AppSmokeTests {
         #expect(snapshot.oauth.fiveHourCapacity.riskColorName == "green")
         #expect(snapshot.oauth.weeklyCapacity.shortText == "90%")
         #expect(abs(snapshot.oauth.weeklyCapacity.usedFraction - 0.90) < 0.0001)
-        #expect(snapshot.oauth.weeklyCapacity.riskColorName == "orange")
+        #expect(snapshot.oauth.weeklyCapacity.riskColorName == "red")
     }
 
     @Test
     func testXlyraOAuthUsageRiskColorsFollowConfiguredBands() {
-        #expect(XlyraOAuthCapacity(averageUsedPercent: 60).riskColorName == "green")
-        #expect(XlyraOAuthCapacity(averageUsedPercent: 61).riskColorName == "yellow")
-        #expect(XlyraOAuthCapacity(averageUsedPercent: 80).riskColorName == "yellow")
-        #expect(XlyraOAuthCapacity(averageUsedPercent: 81).riskColorName == "orange")
-        #expect(XlyraOAuthCapacity(averageUsedPercent: 90).riskColorName == "orange")
-        #expect(XlyraOAuthCapacity(averageUsedPercent: 91).riskColorName == "red")
+        #expect(XlyraOAuthCapacity(averageUsedPercent: 59).riskColorName == "green")
+        #expect(XlyraOAuthCapacity(averageUsedPercent: 60).riskColorName == "yellow")
+        #expect(XlyraOAuthCapacity(averageUsedPercent: 79).riskColorName == "yellow")
+        #expect(XlyraOAuthCapacity(averageUsedPercent: 80).riskColorName == "orange")
+        #expect(XlyraOAuthCapacity(averageUsedPercent: 89).riskColorName == "orange")
+        #expect(XlyraOAuthCapacity(averageUsedPercent: 90).riskColorName == "red")
+    }
+
+    @Test
+    func testXlyraOAuthQuotaProgressColorKeepsLimitedAccountsPercentBased() throws {
+        let account = try JSONDecoder().decode(XlyraOAuthRow.self, from: """
+        {
+          "id": "oauth-limited",
+          "provider": "codex",
+          "status": "connected",
+          "account_id": "user-123",
+          "email": "limited@example.com",
+          "available": true,
+          "limit_reached": true,
+          "five_hour_used_percent": 82,
+          "tokens24h": 0,
+          "cost24h": 0
+        }
+        """.data(using: .utf8)!)
+
+        #expect(account.stateText == "额度触顶")
+        #expect(account.quotaProgressColorName(usedPercent: account.fiveHourUsedDisplayPercent) == "orange")
+    }
+
+    @Test
+    func testXlyraOAuthQuotaProgressColorGraysUnavailableAccounts() throws {
+        let account = try JSONDecoder().decode(XlyraOAuthRow.self, from: """
+        {
+          "id": "oauth-error",
+          "provider": "codex",
+          "status": "error",
+          "account_id": "user-456",
+          "email": "error@example.com",
+          "available": true,
+          "limit_reached": false,
+          "five_hour_used_percent": 92,
+          "tokens24h": 0,
+          "cost24h": 0
+        }
+        """.data(using: .utf8)!)
+
+        #expect(account.quotaProgressColorName(usedPercent: account.fiveHourUsedDisplayPercent) == "gray")
     }
 
     @Test

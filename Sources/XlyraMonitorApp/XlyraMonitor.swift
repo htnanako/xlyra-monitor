@@ -291,6 +291,13 @@ struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
         return "可用"
     }
 
+    func quotaProgressColorName(usedPercent: Double?) -> String {
+        if available == false || isConnectionUsable == false || isCoolingDown {
+            return "gray"
+        }
+        return XlyraOAuthCapacity.riskColorName(for: usedPercent)
+    }
+
     private var isConnectionUsable: Bool {
         ["connected", "active", "ok", "healthy", "available", "ready"].contains(status.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
     }
@@ -488,15 +495,17 @@ struct XlyraOAuthCapacity: Equatable {
     }
 
     var riskColorName: String {
-        guard let averageUsedPercent else {
-            return "gray"
-        }
-        switch averageUsedPercent {
-        case 91...:
+        Self.riskColorName(for: averageUsedPercent)
+    }
+
+    static func riskColorName(for usedPercent: Double?) -> String {
+        guard let usedPercent else { return "gray" }
+        switch usedPercent {
+        case 90...:
             return "red"
-        case 81..<91:
+        case 80..<90:
             return "orange"
-        case 61..<81:
+        case 60..<80:
             return "yellow"
         default:
             return "green"
