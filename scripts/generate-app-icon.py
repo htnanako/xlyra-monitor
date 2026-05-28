@@ -5,7 +5,7 @@ from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = Path(__file__).resolve().parents[1]
 RESOURCES = ROOT / "Resources"
-ICONSET = RESOURCES / "Sub2APIQuotaIcon.iconset"
+ICONSET = RESOURCES / "XlyraMonitorIcon.iconset"
 
 
 def rounded_rectangle_mask(size, radius):

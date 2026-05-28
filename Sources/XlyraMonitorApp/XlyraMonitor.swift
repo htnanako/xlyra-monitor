@@ -2,7 +2,6 @@ import AppKit
 import Combine
 import Foundation
 import SwiftUI
-import Sub2APIQuotaCore
 
 struct XlyraSiteHealth: Decodable, Equatable {
     let success: Bool?
@@ -35,11 +34,47 @@ struct XlyraSiteRow: Decodable, Equatable, Identifiable {
     let tokens24h: Int
     let cost24h: Double
     let recentHealth: XlyraSiteHealth?
+    let isCoolingDown: Bool
 
     var id: String { slug }
 
+    init(
+        name: String,
+        slug: String,
+        type: String,
+        status: String,
+        enabled: Bool,
+        priority: Double,
+        validationOK: Bool?,
+        syncStatus: String?,
+        apiKeyCount: Int,
+        modelCount: Int,
+        lastSyncedAt: String?,
+        tokens24h: Int,
+        cost24h: Double,
+        recentHealth: XlyraSiteHealth?,
+        isCoolingDown: Bool = false
+    ) {
+        self.name = name
+        self.slug = slug
+        self.type = type
+        self.status = status
+        self.enabled = enabled
+        self.priority = priority
+        self.validationOK = validationOK
+        self.syncStatus = syncStatus
+        self.apiKeyCount = apiKeyCount
+        self.modelCount = modelCount
+        self.lastSyncedAt = lastSyncedAt
+        self.tokens24h = tokens24h
+        self.cost24h = cost24h
+        self.recentHealth = recentHealth
+        self.isCoolingDown = isCoolingDown
+    }
+
     var isHealthy: Bool {
         enabled
+            && isCoolingDown == false
             && isServiceStatusUsable
             && validationOK != false
             && hasExplicitSyncFailure == false
@@ -48,6 +83,7 @@ struct XlyraSiteRow: Decodable, Equatable, Identifiable {
 
     var stateText: String {
         if enabled == false { return "已停用" }
+        if isCoolingDown { return "冷却中" }
         if isServiceStatusUsable == false { return status }
         if validationOK == false { return "验证异常" }
         if hasExplicitSyncFailure { return syncStatus ?? "同步异常" }
@@ -78,6 +114,26 @@ struct XlyraSiteRow: Decodable, Equatable, Identifiable {
         case tokens24h
         case cost24h
         case recentHealth = "recent_health"
+        case isCoolingDown = "is_cooling_down"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(String.self, forKey: .name)
+        slug = try container.decode(String.self, forKey: .slug)
+        type = try container.decode(String.self, forKey: .type)
+        status = try container.decode(String.self, forKey: .status)
+        enabled = try container.decode(Bool.self, forKey: .enabled)
+        priority = try container.decode(Double.self, forKey: .priority)
+        validationOK = try container.decodeIfPresent(Bool.self, forKey: .validationOK)
+        syncStatus = try container.decodeIfPresent(String.self, forKey: .syncStatus)
+        apiKeyCount = try container.decode(Int.self, forKey: .apiKeyCount)
+        modelCount = try container.decode(Int.self, forKey: .modelCount)
+        lastSyncedAt = try container.decodeIfPresent(String.self, forKey: .lastSyncedAt)
+        tokens24h = try container.decode(Int.self, forKey: .tokens24h)
+        cost24h = try container.decode(Double.self, forKey: .cost24h)
+        recentHealth = try container.decodeIfPresent(XlyraSiteHealth.self, forKey: .recentHealth)
+        isCoolingDown = try container.decodeIfPresent(Bool.self, forKey: .isCoolingDown) ?? false
     }
 }
 
@@ -111,9 +167,62 @@ struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
     let expiresAt: String?
     let tokens24h: Int
     let cost24h: Double
+    let isCoolingDown: Bool
 
     var isHealthy: Bool {
-        isConnectionUsable && available != false && limitReached != true
+        isConnectionUsable && isCoolingDown == false && available != false && limitReached != true
+    }
+
+    init(
+        id: String,
+        provider: String,
+        siteName: String?,
+        siteSlug: String?,
+        status: String,
+        accountID: String,
+        email: String,
+        planType: String?,
+        available: Bool?,
+        limitReached: Bool?,
+        fiveHourUsedPercent: Double?,
+        fiveHourRemainingPercent: Double?,
+        fiveHourResetAt: Double?,
+        weeklyUsedPercent: Double?,
+        weeklyRemainingPercent: Double?,
+        weeklyResetAt: Double?,
+        creditsBalance: String?,
+        creditsUnlimited: Bool?,
+        lastRefreshAt: String?,
+        lastSyncAt: String?,
+        expiresAt: String?,
+        tokens24h: Int,
+        cost24h: Double,
+        isCoolingDown: Bool = false
+    ) {
+        self.id = id
+        self.provider = provider
+        self.siteName = siteName
+        self.siteSlug = siteSlug
+        self.status = status
+        self.accountID = accountID
+        self.email = email
+        self.planType = planType
+        self.available = available
+        self.limitReached = limitReached
+        self.fiveHourUsedPercent = fiveHourUsedPercent
+        self.fiveHourRemainingPercent = fiveHourRemainingPercent
+        self.fiveHourResetAt = fiveHourResetAt
+        self.weeklyUsedPercent = weeklyUsedPercent
+        self.weeklyRemainingPercent = weeklyRemainingPercent
+        self.weeklyResetAt = weeklyResetAt
+        self.creditsBalance = creditsBalance
+        self.creditsUnlimited = creditsUnlimited
+        self.lastRefreshAt = lastRefreshAt
+        self.lastSyncAt = lastSyncAt
+        self.expiresAt = expiresAt
+        self.tokens24h = tokens24h
+        self.cost24h = cost24h
+        self.isCoolingDown = isCoolingDown
     }
 
     var displayName: String {
@@ -172,6 +281,7 @@ struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
     }
 
     var stateText: String {
+        if isCoolingDown { return "冷却中" }
         if isConnectionUsable == false { return status }
         if limitReached == true { return "额度触顶" }
         if available == false { return "不可用" }
@@ -183,6 +293,9 @@ struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
     }
 
     private static func usedPercent(used: Double?, remaining: Double?) -> Double? {
+        if let (usedPercent, _) = normalizedPercentPair(used: used, remaining: remaining) {
+            return boundedPercent(usedPercent)
+        }
         if let usedPercent = normalizedPercent(used) {
             return boundedPercent(usedPercent)
         }
@@ -193,6 +306,9 @@ struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
     }
 
     private static func remainingPercent(used: Double?, remaining: Double?) -> Double? {
+        if let (_, remainingPercent) = normalizedPercentPair(used: used, remaining: remaining) {
+            return boundedPercent(remainingPercent)
+        }
         if let remainingPercent = normalizedPercent(remaining) {
             return boundedPercent(remainingPercent)
         }
@@ -202,12 +318,34 @@ struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
         return nil
     }
 
+    private static func normalizedPercentPair(used: Double?, remaining: Double?) -> (Double, Double)? {
+        guard let used, let remaining else {
+            return nil
+        }
+
+        let pairs = percentCandidates(used).flatMap { usedCandidate in
+            percentCandidates(remaining).map { remainingCandidate in
+                (usedCandidate, remainingCandidate)
+            }
+        }
+        return pairs.min { lhs, rhs in
+            abs((lhs.0 + lhs.1) - 100) < abs((rhs.0 + rhs.1) - 100)
+        }
+    }
+
     private static func normalizedPercent(_ value: Double?) -> Double? {
         guard let value else { return nil }
         if value > 0, value <= 1 {
             return value * 100
         }
         return value
+    }
+
+    private static func percentCandidates(_ value: Double) -> [Double] {
+        guard value > 0, value <= 1 else {
+            return [value]
+        }
+        return [value * 100, value]
     }
 
     private static func boundedPercent(_ value: Double) -> Double {
@@ -245,6 +383,35 @@ struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
         case expiresAt = "expires_at"
         case tokens24h
         case cost24h
+        case isCoolingDown = "is_cooling_down"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        provider = try container.decode(String.self, forKey: .provider)
+        siteName = try container.decodeIfPresent(String.self, forKey: .siteName)
+        siteSlug = try container.decodeIfPresent(String.self, forKey: .siteSlug)
+        status = try container.decode(String.self, forKey: .status)
+        accountID = try container.decode(String.self, forKey: .accountID)
+        email = try container.decode(String.self, forKey: .email)
+        planType = try container.decodeIfPresent(String.self, forKey: .planType)
+        available = try container.decodeIfPresent(Bool.self, forKey: .available)
+        limitReached = try container.decodeIfPresent(Bool.self, forKey: .limitReached)
+        fiveHourUsedPercent = try container.decodeIfPresent(Double.self, forKey: .fiveHourUsedPercent)
+        fiveHourRemainingPercent = try container.decodeIfPresent(Double.self, forKey: .fiveHourRemainingPercent)
+        fiveHourResetAt = try container.decodeIfPresent(Double.self, forKey: .fiveHourResetAt)
+        weeklyUsedPercent = try container.decodeIfPresent(Double.self, forKey: .weeklyUsedPercent)
+        weeklyRemainingPercent = try container.decodeIfPresent(Double.self, forKey: .weeklyRemainingPercent)
+        weeklyResetAt = try container.decodeIfPresent(Double.self, forKey: .weeklyResetAt)
+        creditsBalance = try container.decodeIfPresent(String.self, forKey: .creditsBalance)
+        creditsUnlimited = try container.decodeIfPresent(Bool.self, forKey: .creditsUnlimited)
+        lastRefreshAt = try container.decodeIfPresent(String.self, forKey: .lastRefreshAt)
+        lastSyncAt = try container.decodeIfPresent(String.self, forKey: .lastSyncAt)
+        expiresAt = try container.decodeIfPresent(String.self, forKey: .expiresAt)
+        tokens24h = try container.decode(Int.self, forKey: .tokens24h)
+        cost24h = try container.decode(Double.self, forKey: .cost24h)
+        isCoolingDown = try container.decodeIfPresent(Bool.self, forKey: .isCoolingDown) ?? false
     }
 }
 
@@ -715,15 +882,88 @@ private struct XlyraMonitorConfiguration: Codable, Equatable {
     var adminAccessToken: String?
 }
 
+struct XlyraOAuthImportResult: Equatable {
+    let message: String
+
+    static func fromResponseData(_ data: Data) -> XlyraOAuthImportResult {
+        guard data.isEmpty == false,
+              let object = try? JSONSerialization.jsonObject(with: data) else {
+            return XlyraOAuthImportResult(message: "OAuth 导入完成")
+        }
+
+        var parts = [String]()
+        if let message = string(from: object, keys: ["message", "msg", "status"]), message.isEmpty == false {
+            parts.append(message)
+        }
+
+        for (title, keys) in [
+            ("导入", ["imported", "created", "account_created", "success", "success_count"]),
+            ("跳过", ["skipped", "duplicate", "duplicated", "reused"]),
+            ("失败", ["failed", "account_failed", "error_count"])
+        ] {
+            if let value = int(from: object, keys: keys) {
+                parts.append("\(title) \(value)")
+            }
+        }
+
+        if let errors = array(from: object, keys: ["errors", "error_messages"]), errors.isEmpty == false {
+            parts.append("错误 \(errors.count)")
+        }
+
+        return XlyraOAuthImportResult(message: parts.isEmpty ? "OAuth 导入完成" : parts.joined(separator: " · "))
+    }
+
+    private static func string(from object: Any, keys: [String]) -> String? {
+        guard let dictionary = object as? [String: Any] else { return nil }
+        for key in keys {
+            if let value = dictionary[key] as? String { return value }
+            if let nested = dictionary["data"] as? [String: Any], let value = nested[key] as? String {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private static func int(from object: Any, keys: [String]) -> Int? {
+        guard let dictionary = object as? [String: Any] else { return nil }
+        for key in keys {
+            if let value = intValue(dictionary[key]) { return value }
+            if let nested = dictionary["data"] as? [String: Any], let value = intValue(nested[key]) {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private static func array(from object: Any, keys: [String]) -> [Any]? {
+        guard let dictionary = object as? [String: Any] else { return nil }
+        for key in keys {
+            if let value = dictionary[key] as? [Any] { return value }
+            if let nested = dictionary["data"] as? [String: Any], let value = nested[key] as? [Any] {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private static func intValue(_ value: Any?) -> Int? {
+        if let value = value as? Int { return value }
+        if let value = value as? Double { return Int(value) }
+        if let value = value as? String { return Int(value) }
+        return nil
+    }
+}
+
 protocol XlyraSnapshotFetching {
     func fetchSnapshot(preferences: XlyraMonitorPreferences) async throws -> XlyraSnapshot
     func refreshOAuthConnections(preferences: XlyraMonitorPreferences, connectionIDs: [String]) async throws
+    func importOAuthAccounts(preferences: XlyraMonitorPreferences, payload: Data) async throws -> XlyraOAuthImportResult
 }
 
 struct XlyraAPIMonitorService: XlyraSnapshotFetching {
-    private let httpClient: HTTPClient
+    private let httpClient: XlyraHTTPClient
 
-    init(httpClient: HTTPClient = URLSessionHTTPClient()) {
+    init(httpClient: XlyraHTTPClient = XlyraURLSessionHTTPClient()) {
         self.httpClient = httpClient
     }
 
@@ -771,6 +1011,20 @@ struct XlyraAPIMonitorService: XlyraSnapshotFetching {
         for connectionID in connectionIDs {
             try await post(path: "api/v1/oauth/connections/\(connectionID)/refresh", preferences: preferences, accessToken: accessToken)
         }
+    }
+
+    func importOAuthAccounts(preferences: XlyraMonitorPreferences, payload: Data) async throws -> XlyraOAuthImportResult {
+        guard let accessToken = try preferences.adminAccessToken() else {
+            throw XlyraMonitorError.missingAdminAccessToken
+        }
+
+        let responseData = try await postJSON(
+            path: "api/v1/oauth/import",
+            preferences: preferences,
+            accessToken: accessToken,
+            payload: payload
+        )
+        return XlyraOAuthImportResult.fromResponseData(responseData)
     }
 
     private func fetchProbe(path: String, preferences: XlyraMonitorPreferences, accessToken: String?) async throws {
@@ -838,6 +1092,28 @@ struct XlyraAPIMonitorService: XlyraSnapshotFetching {
         }
     }
 
+    private func postJSON(path: String, preferences: XlyraMonitorPreferences, accessToken: String, payload: Data) async throws -> Data {
+        guard let consoleURL = preferences.consoleURL else {
+            throw XlyraMonitorError.missingConsoleURL
+        }
+        let url = try apiURL(baseURL: consoleURL, path: path)
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = payload
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(accessToken, forHTTPHeaderField: "X-Access-Token")
+
+        let response = try await httpClient.send(request, timeout: 30)
+        guard (200..<300).contains(response.statusCode) else {
+            if response.statusCode == 401 || response.statusCode == 403 {
+                throw XlyraMonitorError.apiUnauthorized
+            }
+            throw XlyraMonitorError.apiRequestFailed(response.statusCode)
+        }
+        return response.data
+    }
+
     private func apiURL(baseURL: URL, path: String) throws -> URL {
         var base = baseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         let normalizedPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
@@ -850,7 +1126,7 @@ struct XlyraAPIMonitorService: XlyraSnapshotFetching {
     }
 }
 
-private enum XlyraAPISnapshotBuilder {
+enum XlyraAPISnapshotBuilder {
     static func snapshot(
         ready: Void,
         version: Any,
@@ -869,8 +1145,13 @@ private enum XlyraAPISnapshotBuilder {
         let overviewObject = objectPayload(overview)
         let healthRows = arrayPayload(healthSites)
         let siteUsageRows = siteUsageRows(from: overviewObject)
-        let siteRows = arrayPayload(sites).map { siteRow($0, healthRows: healthRows, usageRows: siteUsageRows) }
-        let oauthRows = arrayPayload(oauth).map(oauthRow)
+        let cooldownRows = arrayPayload(cooldowns)
+        let siteRows = arrayPayload(sites)
+            .map { siteRow($0, healthRows: healthRows, usageRows: siteUsageRows, cooldownRows: cooldownRows) }
+            .sorted(by: siteSort)
+        let oauthRows = arrayPayload(oauth)
+            .map { oauthRow($0, cooldownRows: cooldownRows) }
+            .sorted(by: oauthSort)
         let apiKeyRows = arrayPayload(apiKeys).map(apiKeyRow)
 
         let requestSummary = requestSummary(from: overviewObject, requestsPayload: requests)
@@ -904,13 +1185,19 @@ private enum XlyraAPISnapshotBuilder {
         )
     }
 
-    private static func siteRow(_ object: [String: Any], healthRows: [[String: Any]], usageRows: [[String: Any]]) -> XlyraSiteRow {
+    private static func siteRow(
+        _ object: [String: Any],
+        healthRows: [[String: Any]],
+        usageRows: [[String: Any]],
+        cooldownRows: [[String: Any]]
+    ) -> XlyraSiteRow {
         let siteID = string(object, "id", "site_id", "slug") ?? UUID().uuidString
         let slug = string(object, "slug") ?? siteID
         let healthObject = matchingHealthObject(siteID: siteID, slug: slug, healthRows: healthRows)
             ?? dictionary(object, "recent_health", "health", "latest_health")
         let name = string(object, "name", "display_name") ?? string(object, "slug") ?? "未命名站点"
         let usageObject = matchingSiteUsageObject(siteID: siteID, slug: slug, name: name, usageRows: usageRows)
+        let isCoolingDown = hasCooldown(siteID: siteID, slug: slug, name: name, rows: cooldownRows)
         return XlyraSiteRow(
             name: name,
             slug: slug,
@@ -925,7 +1212,8 @@ private enum XlyraAPISnapshotBuilder {
             lastSyncedAt: string(object, "last_synced_at", "state.last_synced_at", "sync_state.last_synced_at"),
             tokens24h: int(usageObject ?? [:], "total_tokens", "tokens", "tokens_24h") ?? int(object, "tokens24h", "tokens_24h", "usage.tokens_24h", "usage.tokens24h", "usage.total_tokens", "total_tokens") ?? 0,
             cost24h: double(usageObject ?? [:], "cost", "estimated_cost", "cost_24h") ?? double(object, "cost24h", "cost_24h", "usage.cost_24h", "usage.cost24h", "usage.estimated_cost", "estimated_cost", "cost") ?? 0,
-            recentHealth: healthObject.map(siteHealth)
+            recentHealth: healthObject.map(siteHealth),
+            isCoolingDown: isCoolingDown
         )
     }
 
@@ -992,15 +1280,20 @@ private enum XlyraAPISnapshotBuilder {
         }
     }
 
-    private static func oauthRow(_ object: [String: Any]) -> XlyraOAuthRow {
-        XlyraOAuthRow(
+    private static func oauthRow(_ object: [String: Any], cooldownRows: [[String: Any]]) -> XlyraOAuthRow {
+        let siteName = string(object, "site_name", "site.name", "siteName")
+        let siteSlug = string(object, "site_slug", "site.slug", "siteSlug")
+        let accountID = string(object, "account_id", "accountID", "account.id") ?? ""
+        let email = string(object, "email", "account.email") ?? ""
+        let isCoolingDown = hasCooldown(siteID: siteSlug ?? accountID, slug: siteSlug ?? accountID, name: siteName ?? email, rows: cooldownRows)
+        return XlyraOAuthRow(
             id: string(object, "id") ?? UUID().uuidString,
             provider: string(object, "provider") ?? "oauth",
-            siteName: string(object, "site_name", "site.name", "siteName"),
-            siteSlug: string(object, "site_slug", "site.slug", "siteSlug"),
+            siteName: siteName,
+            siteSlug: siteSlug,
             status: string(object, "status") ?? "connected",
-            accountID: string(object, "account_id", "accountID", "account.id") ?? "",
-            email: string(object, "email", "account.email") ?? "",
+            accountID: accountID,
+            email: email,
             planType: string(object, "plan_type", "account.plan_type", "meta.plan_type", "quota.plan_type", "meta.quota.plan_type", "metadata.quota.plan_type", "site.oauth_account.plan_type", "site.meta.oauth_plan_type"),
             available: bool(object, "available", "quota.available", "meta.quota.available", "metadata.quota.available"),
             limitReached: bool(object, "limit_reached", "quota.limit_reached", "quota.limited", "meta.quota.limit_reached", "meta.quota.limited", "metadata.quota.limit_reached"),
@@ -1016,8 +1309,38 @@ private enum XlyraAPISnapshotBuilder {
             lastSyncAt: string(object, "last_sync_at", "lastSyncAt", "site.sync_state.last_synced_at"),
             expiresAt: string(object, "expires_at", "expiresAt"),
             tokens24h: int(object, "tokens24h", "tokens_24h", "usage.tokens_24h", "usage.tokens24h", "usage.total_tokens", "site.usage.total_tokens") ?? 0,
-            cost24h: double(object, "cost24h", "cost_24h", "usage.cost_24h", "usage.cost24h", "usage.estimated_cost", "site.usage.estimated_cost") ?? 0
+            cost24h: double(object, "cost24h", "cost_24h", "usage.cost_24h", "usage.cost24h", "usage.estimated_cost", "site.usage.estimated_cost") ?? 0,
+            isCoolingDown: isCoolingDown
         )
+    }
+
+    private static func siteSort(_ lhs: XlyraSiteRow, _ rhs: XlyraSiteRow) -> Bool {
+        let lhsRank = statusRank(isEnabled: lhs.enabled, isCoolingDown: lhs.isCoolingDown, isHealthy: lhs.isHealthy)
+        let rhsRank = statusRank(isEnabled: rhs.enabled, isCoolingDown: rhs.isCoolingDown, isHealthy: rhs.isHealthy)
+        if lhsRank != rhsRank { return lhsRank < rhsRank }
+        if lhs.priority != rhs.priority { return lhs.priority < rhs.priority }
+        return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+    }
+
+    private static func oauthSort(_ lhs: XlyraOAuthRow, _ rhs: XlyraOAuthRow) -> Bool {
+        let lhsRank = statusRank(isEnabled: true, isCoolingDown: lhs.isCoolingDown, isHealthy: lhs.isHealthy)
+        let rhsRank = statusRank(isEnabled: true, isCoolingDown: rhs.isCoolingDown, isHealthy: rhs.isHealthy)
+        if lhsRank != rhsRank { return lhsRank < rhsRank }
+        return lhs.displayName.localizedStandardCompare(rhs.displayName) == .orderedAscending
+    }
+
+    private static func statusRank(isEnabled: Bool, isCoolingDown: Bool, isHealthy: Bool) -> Int {
+        if isEnabled == false { return 3 }
+        if isCoolingDown { return 1 }
+        return isHealthy ? 0 : 2
+    }
+
+    private static func hasCooldown(siteID: String, slug: String, name: String, rows: [[String: Any]]) -> Bool {
+        rows.contains { row in
+            string(row, "site_id", "site.id", "id", "target.site_id") == siteID
+                || string(row, "site_slug", "site.slug", "slug", "target.site_slug") == slug
+                || string(row, "site_name", "site.name", "name", "target.site_name") == name
+        }
     }
 
     private static func apiKeyRow(_ object: [String: Any]) -> XlyraAPIKeyRow {
@@ -1244,7 +1567,9 @@ final class XlyraMonitor: ObservableObject {
     let state: XlyraMonitorState
     private let preferences: XlyraMonitorPreferences
     private let service: XlyraSnapshotFetching
-    private var pollingTask: Task<Void, Never>?
+    private var statusPollingTask: Task<Void, Never>?
+    private var oauthPollingTask: Task<Void, Never>?
+    private var isRefreshInFlight = false
 
     init(
         state: XlyraMonitorState,
@@ -1256,12 +1581,23 @@ final class XlyraMonitor: ObservableObject {
         self.service = service
     }
 
-    func start(interval: TimeInterval) {
-        pollingTask?.cancel()
-        pollingTask = Task { @MainActor in
-            await refreshOAuth()
+    func start(statusInterval: TimeInterval, oauthInterval: TimeInterval) {
+        statusPollingTask?.cancel()
+        oauthPollingTask?.cancel()
+
+        statusPollingTask = Task { @MainActor in
+            await refresh()
             while Task.isCancelled == false {
-                try? await Task.sleep(nanoseconds: UInt64(max(10, interval) * 1_000_000_000))
+                try? await Task.sleep(nanoseconds: UInt64(max(10, statusInterval) * 1_000_000_000))
+                if Task.isCancelled == false {
+                    await refresh()
+                }
+            }
+        }
+
+        oauthPollingTask = Task { @MainActor in
+            while Task.isCancelled == false {
+                try? await Task.sleep(nanoseconds: UInt64(max(10, oauthInterval) * 1_000_000_000))
                 if Task.isCancelled == false {
                     await refreshOAuth()
                 }
@@ -1269,12 +1605,21 @@ final class XlyraMonitor: ObservableObject {
         }
     }
 
+    func start(interval: TimeInterval) {
+        start(statusInterval: interval, oauthInterval: 300)
+    }
+
     func stop() {
-        pollingTask?.cancel()
-        pollingTask = nil
+        statusPollingTask?.cancel()
+        oauthPollingTask?.cancel()
+        statusPollingTask = nil
+        oauthPollingTask = nil
     }
 
     func refresh() async {
+        guard isRefreshInFlight == false else { return }
+        isRefreshInFlight = true
+        defer { isRefreshInFlight = false }
         state.beginRefresh()
         let startedAt = Date()
         do {
@@ -1291,6 +1636,9 @@ final class XlyraMonitor: ObservableObject {
     }
 
     func refreshOAuth() async {
+        guard isRefreshInFlight == false else { return }
+        isRefreshInFlight = true
+        defer { isRefreshInFlight = false }
         state.beginRefresh()
         let startedAt = Date()
         do {
@@ -1307,6 +1655,21 @@ final class XlyraMonitor: ObservableObject {
             state.applyFailure(error.message, requestDuration: Date().timeIntervalSince(startedAt))
         } catch {
             state.applyFailure("刷新失败", requestDuration: Date().timeIntervalSince(startedAt))
+        }
+    }
+
+    func importOAuthAccounts(payload: Data) async -> Result<XlyraOAuthImportResult, XlyraMonitorError> {
+        do {
+            guard preferences.consoleURL != nil else {
+                throw XlyraMonitorError.missingConsoleURL
+            }
+            let result = try await service.importOAuthAccounts(preferences: preferences, payload: payload)
+            await refresh()
+            return .success(result)
+        } catch let error as XlyraMonitorError {
+            return .failure(error)
+        } catch {
+            return .failure(.apiRequestFailed(-1))
         }
     }
 }
@@ -1329,14 +1692,35 @@ final class XlyraAppContainer: ObservableObject {
         appPreferences.$refreshIntervalSeconds
             .dropFirst()
             .removeDuplicates()
-            .sink { [weak self] refreshIntervalSeconds in
+            .sink { [weak self] _ in
                 Task { @MainActor in
-                    self?.monitor.start(interval: refreshIntervalSeconds)
+                    guard let self else { return }
+                    self.monitor.start(
+                        statusInterval: self.appPreferences.refreshIntervalSeconds,
+                        oauthInterval: self.appPreferences.oauthRefreshIntervalSeconds
+                    )
                 }
             }
             .store(in: &cancellables)
 
-        monitor.start(interval: appPreferences.refreshIntervalSeconds)
+        appPreferences.$oauthRefreshIntervalSeconds
+            .dropFirst()
+            .removeDuplicates()
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.monitor.start(
+                        statusInterval: self.appPreferences.refreshIntervalSeconds,
+                        oauthInterval: self.appPreferences.oauthRefreshIntervalSeconds
+                    )
+                }
+            }
+            .store(in: &cancellables)
+
+        monitor.start(
+            statusInterval: appPreferences.refreshIntervalSeconds,
+            oauthInterval: appPreferences.oauthRefreshIntervalSeconds
+        )
         applyAppIcon()
         keepAppOutOfDock()
     }
@@ -1346,7 +1730,7 @@ final class XlyraAppContainer: ObservableObject {
     }
 
     private func applyAppIcon() {
-        guard let icon = NSImage(named: Sub2APIQuotaAppMetadata.appIconName) else {
+        guard let icon = NSImage(named: XlyraMonitorAppMetadata.appIconName) else {
             return
         }
 

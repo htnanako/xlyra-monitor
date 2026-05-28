@@ -13,7 +13,9 @@ xLyra Monitor 是一个原生 macOS 菜单栏 App，用来在状态栏里监控 
 - 站点池明细展示同步状态、验证状态、模型数、上游 Key 数、近期健康状态、Tokens 和成本。
 - API Key 明细展示状态、额度、用量、站点数、请求数，并支持复制。
 - 支持手动刷新 OAuth，也支持后台自动刷新。
+- 支持从 JSON 文件导入 OAuth 账号，并可在导入时填写可选优先级。
 - 支持配置刷新间隔、主题模式和开机自启动。
+- 支持在设置窗口检查 GitHub Releases 更新，并下载 DMG 安装包。
 - xLyra 控制台地址和 Admin Access Token 保存在本机配置文件中。
 
 ## 隐私说明
@@ -88,7 +90,7 @@ open "$HOME/Applications/xLyra Monitor.app"
 重启已运行的 App：
 
 ```sh
-pkill -f 'Sub2APIQuotaApp' || true
+pkill -f 'XlyraMonitorApp' || true
 open "$HOME/Applications/xLyra Monitor.app"
 ```
 
@@ -119,6 +121,5 @@ App 使用 xLyra Admin API，并通过 `X-Access-Token` 请求头传入 Admin Ac
 
 ## 备注
 
-- Swift Package 名称和部分 target 仍保留历史名称 `Sub2APIQuota`，用于兼容现有构建和测试结构。
-- App 对外名称是 `xLyra Monitor`。
+- Swift Package、target、可执行文件和 App 对外名称均已统一为 xLyra Monitor。
 - 当前版本主要面向本地自用和小范围分发。

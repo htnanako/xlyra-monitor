@@ -3,7 +3,9 @@ import SwiftUI
 
 private enum XlyraMenuLayout {
     static let width: CGFloat = 460
-    static let scrollMaxHeight: CGFloat = 320
+    static let scrollBaseMaxHeight: CGFloat = 320
+    static let scrollMaxHeight: CGFloat = scrollBaseMaxHeight * 1.3
+    static let scrollMinHeight: CGFloat = 72
 }
 
 enum XlyraDetailTab: String, CaseIterable, Identifiable {
@@ -12,6 +14,108 @@ enum XlyraDetailTab: String, CaseIterable, Identifiable {
     case apiKeys = "API Key"
 
     var id: String { rawValue }
+}
+
+struct MenuBarPalette {
+    let text: NSColor
+    let track: NSColor
+
+    init(mode: AppThemeMode, systemColorScheme: ColorScheme) {
+        let isDark = mode.resolvesToDark(systemColorScheme: systemColorScheme)
+        text = isDark ? .white : .labelColor
+        track = isDark ? NSColor.white.withAlphaComponent(0.18) : NSColor.black.withAlphaComponent(0.16)
+    }
+}
+
+struct MenuTheme {
+    let isDark: Bool
+    let background: Color
+    let card: Color
+    let elevatedCard: Color
+    let control: Color
+    let separator: Color
+    let text: Color
+    let secondary: Color
+    let tertiary: Color
+    let green: Color
+    let yellow: Color
+    let orange: Color
+    let red: Color
+
+    init(mode: AppThemeMode, systemColorScheme: ColorScheme) {
+        isDark = mode.resolvesToDark(systemColorScheme: systemColorScheme)
+        background = isDark ? Color(red: 0.08, green: 0.09, blue: 0.10) : Color(red: 0.96, green: 0.97, blue: 0.98)
+        card = isDark ? Color(red: 0.13, green: 0.14, blue: 0.15) : .white
+        elevatedCard = isDark ? Color(red: 0.18, green: 0.19, blue: 0.20) : Color(red: 0.98, green: 0.99, blue: 1.0)
+        control = isDark ? Color.white.opacity(0.10) : Color.black.opacity(0.06)
+        separator = isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.10)
+        text = isDark ? .white : Color(red: 0.10, green: 0.11, blue: 0.13)
+        secondary = isDark ? Color.white.opacity(0.62) : Color.black.opacity(0.58)
+        tertiary = isDark ? Color.white.opacity(0.42) : Color.black.opacity(0.42)
+        green = Color(red: 0.18, green: 0.70, blue: 0.38)
+        yellow = Color(red: 0.82, green: 0.63, blue: 0.10)
+        orange = Color(red: 0.93, green: 0.43, blue: 0.16)
+        red = Color(red: 0.88, green: 0.21, blue: 0.24)
+    }
+}
+
+enum MenuBarQuotaImageRenderer {
+    static func color(for colorName: String) -> NSColor {
+        switch colorName {
+        case "green":
+            return NSColor.systemGreen
+        case "yellow":
+            return NSColor.systemYellow
+        case "orange":
+            return NSColor.systemOrange
+        case "red":
+            return NSColor.systemRed
+        default:
+            return NSColor.systemGray
+        }
+    }
+}
+
+struct MenuToolButtonStyle: ButtonStyle {
+    let theme: MenuTheme
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(theme.text)
+            .padding(.horizontal, 9)
+            .frame(height: 28)
+            .background(
+                RoundedRectangle(cornerRadius: 7)
+                    .fill(configuration.isPressed ? theme.control.opacity(0.7) : theme.control)
+            )
+    }
+}
+
+struct SettingsTextFieldRow<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 84, alignment: .trailing)
+            content()
+                .textFieldStyle(.roundedBorder)
+        }
+    }
+}
+
+private enum XlyraUpdateStatus: Equatable {
+    case idle
+    case checking
+    case upToDate
+    case available(XlyraAppUpdate)
+    case downloading(XlyraAppUpdate)
+    case downloaded(URL)
+    case failed(String)
 }
 
 struct XlyraMenuBarLabel: View {
@@ -209,6 +313,8 @@ struct XlyraStatusMenuView: View {
 
     @Environment(\.openWindow) private var openWindow
     @Environment(\.colorScheme) private var colorScheme
+    @State private var detailContentHeights: [XlyraDetailTab: CGFloat] = [:]
+
     var body: some View {
         let theme = MenuTheme(mode: preferences.themeMode, systemColorScheme: colorScheme)
 
@@ -216,8 +322,11 @@ struct XlyraStatusMenuView: View {
             XlyraSummaryView(state: state, theme: theme)
 
             if let snapshot = state.snapshot {
+                let selectedTab = state.selectedDetailTab
+                let detailHeight = detailFrameHeight(snapshot: snapshot, tab: selectedTab)
+
                 XlyraTabStrip(
-                    selectedTab: state.selectedDetailTab,
+                    selectedTab: selectedTab,
                     snapshot: snapshot,
                     theme: theme,
                     onSelect: state.selectDetailTab
@@ -225,7 +334,7 @@ struct XlyraStatusMenuView: View {
 
                 XlyraMenuScrollView {
                     VStack(alignment: .leading, spacing: 12) {
-                        switch state.selectedDetailTab {
+                        switch selectedTab {
                         case .oauth:
                             XlyraOAuthPane(snapshot: snapshot, state: state, monitor: monitor, theme: theme)
                         case .sites:
@@ -235,8 +344,13 @@ struct XlyraStatusMenuView: View {
                         }
                     }
                     .padding(.trailing, 2)
+                    .background(XlyraDetailContentHeightReader())
                 }
-                .frame(height: XlyraMenuLayout.scrollMaxHeight)
+                .frame(height: detailHeight)
+                .onPreferenceChange(XlyraDetailContentHeightKey.self) { height in
+                    guard height > 0 else { return }
+                    detailContentHeights[selectedTab] = ceil(height)
+                }
             } else {
                 Text(state.lastError ?? "等待第一次检查")
                     .font(.system(size: 13, weight: .medium))
@@ -257,6 +371,14 @@ struct XlyraStatusMenuView: View {
                     Label("刷新", systemImage: "arrow.clockwise")
                 }
                 .disabled(state.isRefreshing)
+                .buttonStyle(MenuToolButtonStyle(theme: theme))
+
+                Button {
+                    openWindow(id: "xlyra-oauth-import")
+                    WindowFocusHelper.focusWindow(title: "导入 OAuth 账号")
+                } label: {
+                    Label("导入", systemImage: "tray.and.arrow.down")
+                }
                 .buttonStyle(MenuToolButtonStyle(theme: theme))
 
                 Button {
@@ -285,6 +407,46 @@ struct XlyraStatusMenuView: View {
         .background(theme.background)
         .preferredColorScheme(preferences.themeMode.preferredColorScheme)
     }
+
+    private func detailFrameHeight(snapshot: XlyraSnapshot, tab: XlyraDetailTab) -> CGFloat {
+        let measuredHeight = detailContentHeights[tab]
+        let contentHeight = measuredHeight ?? estimatedDetailContentHeight(snapshot: snapshot, tab: tab)
+        return min(max(contentHeight, XlyraMenuLayout.scrollMinHeight), XlyraMenuLayout.scrollMaxHeight)
+    }
+
+    private func estimatedDetailContentHeight(snapshot: XlyraSnapshot, tab: XlyraDetailTab) -> CGFloat {
+        let headerHeight: CGFloat = 32
+        switch tab {
+        case .oauth:
+            let count = snapshot.oauth.rows.count
+            guard count > 0 else { return headerHeight + 44 }
+            return headerHeight + CGFloat(count) * 72 + CGFloat(max(0, count - 1)) * 7
+        case .sites:
+            let count = snapshot.sites.rows.count
+            guard count > 0 else { return headerHeight + 44 }
+            return headerHeight + CGFloat(count) * 60 + CGFloat(max(0, count - 1)) * 7
+        case .apiKeys:
+            let count = snapshot.apiKeys.rows.count
+            guard count > 0 else { return headerHeight + 44 }
+            return headerHeight + CGFloat(count) * 64 + CGFloat(max(0, count - 1)) * 7
+        }
+    }
+}
+
+private struct XlyraDetailContentHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+private struct XlyraDetailContentHeightReader: View {
+    var body: some View {
+        GeometryReader { proxy in
+            Color.clear.preference(key: XlyraDetailContentHeightKey.self, value: proxy.size.height)
+        }
+    }
 }
 
 private struct XlyraTabStrip: View {
@@ -304,25 +466,24 @@ private struct XlyraTabStrip: View {
     }
 
     private func tabButton(_ tab: XlyraDetailTab, countText: String) -> some View {
-        Button {
-            onSelect(tab)
-        } label: {
-            HStack(spacing: 6) {
-                Text(tab.rawValue)
-                Text(countText)
-                    .font(.system(size: 11, weight: .bold).monospacedDigit())
-                    .foregroundStyle(selectedTab == tab ? theme.text : theme.secondary)
-            }
-            .font(.system(size: 12, weight: .bold))
-            .foregroundStyle(selectedTab == tab ? theme.text : theme.secondary)
-            .frame(maxWidth: .infinity)
-            .frame(height: 28)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(selectedTab == tab ? theme.card : Color.clear)
-            )
+        HStack(spacing: 6) {
+            Text(tab.rawValue)
+            Text(countText)
+                .font(.system(size: 11, weight: .bold).monospacedDigit())
+                .foregroundStyle(selectedTab == tab ? theme.text : theme.secondary)
         }
-        .buttonStyle(.plain)
+        .font(.system(size: 12, weight: .bold))
+        .foregroundStyle(selectedTab == tab ? theme.text : theme.secondary)
+        .frame(maxWidth: .infinity)
+        .frame(height: 28)
+        .contentShape(Rectangle())
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(selectedTab == tab ? theme.card : Color.clear)
+        )
+        .onTapGesture {
+            onSelect(tab)
+        }
     }
 }
 
@@ -340,6 +501,7 @@ private struct XlyraMenuScrollView<Content: View>: View {
                 .padding(.trailing, 8)
         }
         .scrollIndicators(.visible)
+        .scrollBounceBehavior(.always, axes: .vertical)
         .defaultScrollAnchor(.top)
     }
 }
@@ -627,6 +789,11 @@ private struct XlyraOAuthRowView: View {
                             .foregroundStyle(theme.secondary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
+                        Text(compactResetText)
+                            .font(.system(size: 10, weight: .medium).monospacedDigit())
+                            .foregroundStyle(theme.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.78)
                     }
 
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
@@ -681,6 +848,10 @@ private struct XlyraOAuthRowView: View {
             return "\(siteText) · Credits \(creditsBalance)"
         }
         return siteText
+    }
+
+    private var compactResetText: String {
+        "5h \(XlyraFormat.resetRemainingTime(account.fiveHourResetAt)) · 7d \(XlyraFormat.resetRemainingTime(account.weeklyResetAt))"
     }
 
     private func quotaTint(usedPercent: Double?) -> Color {
@@ -1045,15 +1216,19 @@ struct XlyraSettingsWindowView: View {
     let monitorPreferences: XlyraMonitorPreferences
     let monitor: XlyraMonitor
     let loginItem: LoginItemService
+    private let updateService = XlyraAppUpdateService()
 
     @State private var consoleURLText = ""
     @State private var adminAccessTokenText = ""
-    @State private var refreshIntervalText = "30"
+    @State private var statusRefreshIntervalText = "30"
+    @State private var oauthRefreshIntervalText = "300"
     @State private var themeMode: AppThemeMode = .automatic
     @State private var launchAtLogin = false
     @State private var message: String?
+    @State private var updateStatus: XlyraUpdateStatus = .idle
     @State private var savedConsoleURLText = ""
-    @State private var savedRefreshIntervalText = "30"
+    @State private var savedStatusRefreshIntervalText = "30"
+    @State private var savedOAuthRefreshIntervalText = "300"
     @State private var savedThemeMode: AppThemeMode = .automatic
     @State private var savedLaunchAtLogin = false
 
@@ -1078,9 +1253,17 @@ struct XlyraSettingsWindowView: View {
                 .foregroundStyle(.secondary)
                 .padding(.leading, 96)
 
-            SettingsTextFieldRow(title: "刷新间隔") {
+            SettingsTextFieldRow(title: "基础信息刷新") {
                 HStack(spacing: 6) {
-                    TextField("30", text: $refreshIntervalText)
+                    TextField("30", text: $statusRefreshIntervalText)
+                    Text("秒")
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            SettingsTextFieldRow(title: "OAuth 额度刷新") {
+                HStack(spacing: 6) {
+                    TextField("300", text: $oauthRefreshIntervalText)
                     Text("秒")
                         .foregroundStyle(.secondary)
                 }
@@ -1098,6 +1281,10 @@ struct XlyraSettingsWindowView: View {
             }
 
             Toggle("开机自启动", isOn: $launchAtLogin)
+
+            Divider()
+
+            softwareUpdateSection
 
             if let message {
                 Text(message)
@@ -1121,16 +1308,142 @@ struct XlyraSettingsWindowView: View {
         .onAppear {
             consoleURLText = monitorPreferences.consoleURL?.absoluteString ?? ""
             adminAccessTokenText = ""
-            refreshIntervalText = String(Int(preferences.refreshIntervalSeconds))
+            statusRefreshIntervalText = String(Int(preferences.refreshIntervalSeconds))
+            oauthRefreshIntervalText = String(Int(preferences.oauthRefreshIntervalSeconds))
             themeMode = preferences.themeMode
             launchAtLogin = loginItem.isEnabled
             rememberSavedValues()
         }
     }
 
+    private var softwareUpdateSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("软件更新")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text("当前版本 \(XlyraMonitorAppMetadata.appVersion)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Button {
+                    checkForUpdate()
+                } label: {
+                    Label(checkUpdateButtonTitle, systemImage: "arrow.down.circle")
+                }
+                .disabled(isCheckingOrDownloading)
+            }
+
+            if let update = updateForAction {
+                HStack(spacing: 8) {
+                    Text("发现 \(update.version)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Spacer()
+
+                    Button {
+                        NSWorkspace.shared.open(update.releasePageURL)
+                    } label: {
+                        Label("发布页", systemImage: "safari")
+                    }
+                    .disabled(isCheckingOrDownloading)
+                }
+            }
+
+            if let updateMessage {
+                Text(updateMessage)
+                    .font(.caption)
+                    .foregroundStyle(updateMessageIsError ? .red : .secondary)
+            }
+        }
+    }
+
+    private var checkUpdateButtonTitle: String {
+        if case .checking = updateStatus { return "检查中" }
+        if case .downloading = updateStatus { return "下载中" }
+        return "检查并下载"
+    }
+
+    private var isCheckingOrDownloading: Bool {
+        if case .checking = updateStatus { return true }
+        if case .downloading = updateStatus { return true }
+        return false
+    }
+
+    private var updateForAction: XlyraAppUpdate? {
+        switch updateStatus {
+        case .available(let update), .downloading(let update):
+            return update
+        default:
+            return nil
+        }
+    }
+
+    private var updateMessage: String? {
+        switch updateStatus {
+        case .idle:
+            return nil
+        case .checking:
+            return "正在检查 GitHub Releases"
+        case .upToDate:
+            return "当前已是最新版本"
+        case .available(let update):
+            return "\(update.releaseName) 可用，准备下载"
+        case .downloading:
+            return "正在下载 DMG"
+        case .downloaded(let url):
+            return "已下载到 \(url.lastPathComponent)，并已打开安装包"
+        case .failed(let message):
+            return message
+        }
+    }
+
+    private var updateMessageIsError: Bool {
+        if case .failed = updateStatus { return true }
+        return false
+    }
+
+    private func checkForUpdate() {
+        updateStatus = .checking
+        Task { @MainActor in
+            do {
+                if let update = try await updateService.latestUpdate(currentVersion: XlyraMonitorAppMetadata.appVersion) {
+                    updateStatus = .available(update)
+                    download(update)
+                } else {
+                    updateStatus = .upToDate
+                }
+            } catch let error as XlyraAppUpdateError {
+                updateStatus = .failed(error.message)
+            } catch {
+                updateStatus = .failed("检查更新失败")
+            }
+        }
+    }
+
+    private func download(_ update: XlyraAppUpdate) {
+        updateStatus = .downloading(update)
+        Task { @MainActor in
+            do {
+                let downloadedURL = try await updateService.download(update)
+                updateStatus = .downloaded(downloadedURL)
+                NSWorkspace.shared.open(downloadedURL)
+            } catch let error as XlyraAppUpdateError {
+                updateStatus = .failed(error.message)
+            } catch {
+                updateStatus = .failed("下载更新失败")
+            }
+        }
+    }
+
     private var hasUnsavedChanges: Bool {
         normalizedConsoleURLText != savedConsoleURLText
-            || refreshIntervalText.trimmingCharacters(in: .whitespacesAndNewlines) != savedRefreshIntervalText
+            || normalizedStatusRefreshIntervalText != savedStatusRefreshIntervalText
+            || normalizedOAuthRefreshIntervalText != savedOAuthRefreshIntervalText
             || themeMode != savedThemeMode
             || launchAtLogin != savedLaunchAtLogin
             || adminAccessTokenText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
@@ -1143,10 +1456,16 @@ struct XlyraSettingsWindowView: View {
             message = "控制台地址必须是 http 或 https URL"
             return
         }
-        guard let interval = Int(refreshIntervalText.trimmingCharacters(in: .whitespacesAndNewlines)),
-              interval >= 10,
-              interval <= 3600 else {
-            message = "刷新间隔必须是 10 到 3600 秒"
+        guard let statusInterval = Int(normalizedStatusRefreshIntervalText),
+              statusInterval >= 10,
+              statusInterval <= 3600 else {
+            message = "基础信息刷新间隔必须是 10 到 3600 秒"
+            return
+        }
+        guard let oauthInterval = Int(normalizedOAuthRefreshIntervalText),
+              oauthInterval >= 10,
+              oauthInterval <= 3600 else {
+            message = "OAuth 额度刷新间隔必须是 10 到 3600 秒"
             return
         }
 
@@ -1161,13 +1480,17 @@ struct XlyraSettingsWindowView: View {
             return
         }
         preferences.update(
-            refreshIntervalSeconds: TimeInterval(interval),
+            refreshIntervalSeconds: TimeInterval(statusInterval),
+            oauthRefreshIntervalSeconds: TimeInterval(oauthInterval),
             showsMenuBarNumbers: preferences.showsMenuBarNumbers,
             themeMode: themeMode
         )
         try? loginItem.setEnabled(launchAtLogin)
-        monitor.start(interval: TimeInterval(interval))
-        Task { await monitor.refreshOAuth() }
+        monitor.start(
+            statusInterval: TimeInterval(statusInterval),
+            oauthInterval: TimeInterval(oauthInterval)
+        )
+        Task { await monitor.refresh() }
         message = "已保存"
         rememberSavedValues()
     }
@@ -1176,11 +1499,191 @@ struct XlyraSettingsWindowView: View {
         consoleURLText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private var normalizedStatusRefreshIntervalText: String {
+        statusRefreshIntervalText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var normalizedOAuthRefreshIntervalText: String {
+        oauthRefreshIntervalText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private func rememberSavedValues() {
         savedConsoleURLText = normalizedConsoleURLText
-        savedRefreshIntervalText = refreshIntervalText.trimmingCharacters(in: .whitespacesAndNewlines)
+        savedStatusRefreshIntervalText = normalizedStatusRefreshIntervalText
+        savedOAuthRefreshIntervalText = normalizedOAuthRefreshIntervalText
         savedThemeMode = themeMode
         savedLaunchAtLogin = launchAtLogin
+    }
+}
+
+struct XlyraOAuthImportWindowView: View {
+    @ObservedObject var preferences: AppPreferences
+    let monitor: XlyraMonitor
+
+    @State private var selectedFileURL: URL?
+    @State private var selectedFileName = "未选择文件"
+    @State private var priorityText = ""
+    @State private var isImportingOAuth = false
+    @State private var message: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("导入 OAuth 账号")
+                .font(.title2.weight(.semibold))
+
+            HStack(spacing: 10) {
+                Button {
+                    selectImportFile()
+                } label: {
+                    Label("选择文件", systemImage: "doc.badge.plus")
+                }
+                .disabled(isImportingOAuth)
+
+                Text(selectedFileName)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+
+            SettingsTextFieldRow(title: "优先级") {
+                TextField("默认", text: $priorityText)
+                    .disabled(isImportingOAuth)
+            }
+
+            Text("选择 xLyra `/api/v1/oauth/import` 支持的 JSON 文件。填写优先级后会写入导入内容；留空则使用 xLyra 默认值。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if let message {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack {
+                Spacer()
+                Button {
+                    selectedFileURL = nil
+                    selectedFileName = "未选择文件"
+                    priorityText = ""
+                    message = nil
+                } label: {
+                    Label("清空", systemImage: "xmark.circle")
+                }
+                .disabled((selectedFileURL == nil && priorityText.isEmpty) || isImportingOAuth)
+
+                Button {
+                    Task { await importOAuthAccounts() }
+                } label: {
+                    Label(isImportingOAuth ? "导入中" : "导入", systemImage: "tray.and.arrow.down")
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(isImportingOAuth || selectedFileURL == nil)
+            }
+        }
+        .padding(20)
+        .frame(width: 520)
+        .frame(minHeight: 300)
+    }
+
+    private func selectImportFile() {
+        let panel = NSOpenPanel()
+        panel.title = "选择 OAuth 导入文件"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = URL(fileURLWithPath: preferences.importDirectoryPath, isDirectory: true)
+        panel.allowedContentTypes = [.json]
+
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
+
+        selectedFileURL = url
+        selectedFileName = url.lastPathComponent
+        preferences.updateImportDirectoryPath(url.deletingLastPathComponent().path)
+        message = nil
+    }
+
+    private func importOAuthAccounts() async {
+        message = nil
+        guard let selectedFileURL else {
+            message = "请先选择 OAuth 导入文件"
+            return
+        }
+        guard let priority = normalizedPriority else {
+            message = "优先级必须是整数"
+            return
+        }
+
+        let payload: Data
+        do {
+            let data = try Data(contentsOf: selectedFileURL)
+            payload = try Self.payload(from: data, priority: priority)
+        } catch {
+            message = "OAuth 导入文件必须是合法 JSON"
+            return
+        }
+
+        isImportingOAuth = true
+        defer { isImportingOAuth = false }
+
+        switch await monitor.importOAuthAccounts(payload: payload) {
+        case .success(let result):
+            self.selectedFileURL = nil
+            selectedFileName = "未选择文件"
+            priorityText = ""
+            message = result.message
+        case .failure(let error):
+            message = error.message
+        }
+    }
+
+    private var normalizedPriority: Int? {
+        let text = priorityText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard text.isEmpty == false else { return 0 }
+        return Int(text)
+    }
+
+    private static func payload(from data: Data, priority: Int) throws -> Data {
+        let object = try JSONSerialization.jsonObject(with: data)
+        guard priority > 0 else {
+            return data
+        }
+        let updatedObject = applyPriority(priority, to: object)
+        return try JSONSerialization.data(withJSONObject: updatedObject, options: [])
+    }
+
+    private static func applyPriority(_ priority: Int, to object: Any) -> Any {
+        if var dictionary = object as? [String: Any] {
+            if let items = dictionary["items"] as? [[String: Any]] {
+                dictionary["items"] = items.map { item in
+                    var item = item
+                    item["priority"] = priority
+                    return item
+                }
+                return dictionary
+            }
+            if let accounts = dictionary["accounts"] as? [[String: Any]] {
+                dictionary["accounts"] = accounts.map { account in
+                    var account = account
+                    account["priority"] = priority
+                    return account
+                }
+                return dictionary
+            }
+            dictionary["priority"] = priority
+            return dictionary
+        }
+        if let array = object as? [[String: Any]] {
+            return array.map { item in
+                var item = item
+                item["priority"] = priority
+                return item
+            }
+        }
+        return object
     }
 }
 
@@ -1220,6 +1723,29 @@ private enum XlyraFormat {
             return "--"
         }
         return shortDateFormatter.string(from: Date(timeIntervalSince1970: epochSeconds))
+    }
+
+    static func resetRemainingTime(_ epochSeconds: Double?, now: Date = Date()) -> String {
+        guard let epochSeconds else {
+            return "--"
+        }
+        let remaining = Date(timeIntervalSince1970: epochSeconds).timeIntervalSince(now)
+        guard remaining > 0 else {
+            return "已到"
+        }
+
+        let totalMinutes = Int(ceil(remaining / 60))
+        let days = totalMinutes / (24 * 60)
+        let hours = (totalMinutes % (24 * 60)) / 60
+        let minutes = totalMinutes % 60
+
+        if days > 0 {
+            return hours > 0 ? "\(days)d\(hours)h" : "\(days)d"
+        }
+        if hours > 0 {
+            return minutes > 0 ? "\(hours)h\(minutes)m" : "\(hours)h"
+        }
+        return "\(max(1, minutes))m"
     }
 
     private static func format(_ value: Double) -> String {

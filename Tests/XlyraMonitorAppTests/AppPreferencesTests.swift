@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Sub2APIQuotaApp
+@testable import XlyraMonitorApp
 
 @Suite("AppPreferencesTests")
 @MainActor
@@ -30,11 +30,17 @@ struct AppPreferencesTests {
         let defaults = UserDefaults(suiteName: suiteName)!
         let preferences = AppPreferences(userDefaults: defaults)
 
-        preferences.update(refreshIntervalSeconds: 60, showsMenuBarNumbers: true, themeMode: .dark)
+        preferences.update(
+            refreshIntervalSeconds: 60,
+            oauthRefreshIntervalSeconds: 120,
+            showsMenuBarNumbers: true,
+            themeMode: .dark
+        )
 
         let reloaded = AppPreferences(userDefaults: defaults)
         #expect(reloaded.themeMode == .dark)
         #expect(reloaded.refreshIntervalSeconds == 60)
+        #expect(reloaded.oauthRefreshIntervalSeconds == 120)
         #expect(reloaded.showsMenuBarNumbers)
     }
 
@@ -50,6 +56,7 @@ struct AppPreferencesTests {
         #expect(preferences.themeMode == .dark)
         #expect(reloaded.themeMode == .dark)
         #expect(reloaded.refreshIntervalSeconds == 30)
+        #expect(reloaded.oauthRefreshIntervalSeconds == 300)
         #expect(reloaded.showsMenuBarNumbers == false)
     }
 }

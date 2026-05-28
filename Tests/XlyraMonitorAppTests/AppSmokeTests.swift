@@ -2,15 +2,67 @@ import AppKit
 import Foundation
 import SwiftUI
 import Testing
-@testable import Sub2APIQuotaCore
-@testable import Sub2APIQuotaApp
+@testable import XlyraMonitorApp
 
 @Suite("AppSmokeTests")
 struct AppSmokeTests {
     @Test
     func testAppTargetExposesMenuBarMetadata() {
-        #expect(Sub2APIQuotaAppMetadata.menuBarTitle == "xLyra")
-        #expect(Sub2APIQuotaAppMetadata.menuBarLabel == "xLyra 监控")
+        #expect(XlyraMonitorAppMetadata.menuBarTitle == "xLyra")
+        #expect(XlyraMonitorAppMetadata.menuBarLabel == "xLyra 监控")
+        #expect(XlyraMonitorAppMetadata.fallbackVersion == "0.1.0")
+    }
+
+    @Test
+    func testUpdateVersionComparisonHandlesTags() {
+        #expect(XlyraVersionComparator.isVersion("v0.1.1", newerThan: "0.1.0"))
+        #expect(XlyraVersionComparator.isVersion("0.10.0", newerThan: "0.9.9"))
+        #expect(XlyraVersionComparator.isVersion("0.1.0", newerThan: "0.1.0") == false)
+        #expect(XlyraVersionComparator.isVersion("0.0.9", newerThan: "0.1.0") == false)
+    }
+
+    @Test
+    func testUpdateInstallerAssetPrefersXlyraDMG() {
+        let assets = [
+            XlyraGitHubReleaseAsset(
+                name: "notes.txt",
+                browserDownloadURL: URL(string: "https://example.com/notes.txt")!
+            ),
+            XlyraGitHubReleaseAsset(
+                name: "other-app.dmg",
+                browserDownloadURL: URL(string: "https://example.com/other.dmg")!
+            ),
+            XlyraGitHubReleaseAsset(
+                name: "xLyra-Monitor-0.2.0.dmg",
+                browserDownloadURL: URL(string: "https://example.com/xlyra.dmg")!
+            )
+        ]
+
+        #expect(XlyraAppUpdateService.installerAsset(from: assets)?.name == "xLyra-Monitor-0.2.0.dmg")
+    }
+
+    @Test
+    func testGitHubReleaseDecodesUpdatePayload() throws {
+        let data = """
+        {
+          "tag_name": "v0.2.0",
+          "name": "xLyra Monitor 0.2.0",
+          "html_url": "https://github.com/z4jst/xlyra-monitor/releases/tag/v0.2.0",
+          "draft": false,
+          "prerelease": false,
+          "assets": [
+            {
+              "name": "xLyra-Monitor-0.2.0.dmg",
+              "browser_download_url": "https://github.com/z4jst/xlyra-monitor/releases/download/v0.2.0/xLyra-Monitor-0.2.0.dmg"
+            }
+          ]
+        }
+        """.data(using: .utf8)!
+
+        let release = try JSONDecoder().decode(XlyraGitHubRelease.self, from: data)
+
+        #expect(release.tagName == "v0.2.0")
+        #expect(release.assets.first?.name == "xLyra-Monitor-0.2.0.dmg")
     }
 
     @Test
@@ -208,6 +260,30 @@ struct AppSmokeTests {
         #expect(account.weeklyUsedDisplayPercent == 55)
         #expect(account.weeklyRemainingDisplayPercent == 45)
         #expect(account.quotaText == "5h 剩 96% · 7d 剩 45%")
+    }
+
+    @Test
+    func testXlyraOAuthQuotaUsesRemainingPercentWhenOneIsAmbiguous() throws {
+        let data = """
+        {
+          "id": "oauth-1",
+          "provider": "codex",
+          "status": "connected",
+          "account_id": "user-1",
+          "email": "codex@example.com",
+          "available": true,
+          "limit_reached": false,
+          "five_hour_used_percent": 1,
+          "five_hour_remaining_percent": 99,
+          "tokens24h": 0,
+          "cost24h": 0
+        }
+        """.data(using: .utf8)!
+
+        let account = try JSONDecoder().decode(XlyraOAuthRow.self, from: data)
+
+        #expect(account.fiveHourUsedDisplayPercent == 1)
+        #expect(account.fiveHourRemainingDisplayPercent == 99)
     }
 
     @Test
@@ -458,6 +534,50 @@ struct AppSmokeTests {
         #expect(XlyraOAuthCapacity(averageUsedPercent: 91).riskColorName == "red")
     }
 
+    @Test
+    func testXlyraSitesAndOAuthSortByNormalCooldownErrorDisabled() throws {
+        let json = """
+        {
+          "ready": true,
+          "version": {},
+          "site_types": [],
+          "dashboard": {},
+          "oauth": [
+            { "id": "oauth-error", "provider": "codex", "status": "error", "account_id": "3", "email": "error@example.com", "available": true, "limit_reached": false, "tokens24h": 0, "cost24h": 0, "site_slug": "site-error" },
+            { "id": "oauth-cooldown", "provider": "codex", "status": "connected", "account_id": "2", "email": "cooldown@example.com", "available": true, "limit_reached": false, "tokens24h": 0, "cost24h": 0, "site_slug": "site-cooldown" },
+            { "id": "oauth-normal", "provider": "codex", "status": "connected", "account_id": "1", "email": "normal@example.com", "available": true, "limit_reached": false, "tokens24h": 0, "cost24h": 0, "site_slug": "site-normal" }
+          ],
+          "sites": [
+            { "id": "site-disabled", "name": "Disabled", "slug": "site-disabled", "site_type": "codex", "status": "active", "enabled": false, "routing_priority": 4, "api_key_count": 1, "model_count": 1 },
+            { "id": "site-error", "name": "Error", "slug": "site-error", "site_type": "codex", "status": "active", "enabled": true, "routing_priority": 3, "api_key_count": 1, "model_count": 1, "validation_ok": false },
+            { "id": "site-cooldown", "name": "Cooldown", "slug": "site-cooldown", "site_type": "codex", "status": "active", "enabled": true, "routing_priority": 2, "api_key_count": 1, "model_count": 1 },
+            { "id": "site-normal", "name": "Normal", "slug": "site-normal", "site_type": "codex", "status": "active", "enabled": true, "routing_priority": 1, "api_key_count": 1, "model_count": 1 }
+          ],
+          "api_keys": [],
+          "health_sites": [],
+          "cooldowns": [{ "site_id": "site-cooldown" }],
+          "requests": []
+        }
+        """.data(using: .utf8)!
+        let payload = try JSONSerialization.jsonObject(with: json) as! [String: Any]
+
+        let snapshot = try XlyraAPISnapshotBuilder.snapshot(
+            ready: (),
+            version: payload["version"]!,
+            siteTypes: payload["site_types"]!,
+            overview: payload["dashboard"]!,
+            oauth: payload["oauth"]!,
+            sites: payload["sites"]!,
+            apiKeys: payload["api_keys"]!,
+            healthSites: payload["health_sites"]!,
+            cooldowns: payload["cooldowns"]!,
+            requests: payload["requests"]!
+        )
+
+        #expect(snapshot.sites.rows.map(\.slug) == ["site-normal", "site-cooldown", "site-error", "site-disabled"])
+        #expect(snapshot.oauth.rows.map(\.id) == ["oauth-normal", "oauth-cooldown", "oauth-error"])
+    }
+
     @MainActor
     @Test
     func testXlyraMenuRendersScrollableDetailArea() throws {
@@ -520,7 +640,9 @@ struct AppSmokeTests {
         #expect(snapshot.oauth.rows.first?.weeklyUsedPercent == 55)
         #expect(snapshot.oauth.rows.first?.creditsBalance == "2")
         #expect(snapshot.oauth.rows.first?.lastRefreshAt == "2026-05-27T05:01:06.765101+00:00")
-        #expect(snapshot.sites.healthy == 1)
+        #expect(snapshot.sites.healthy == 0)
+        #expect(snapshot.sites.rows.first?.stateText == "冷却中")
+        #expect(snapshot.oauth.rows.first?.stateText == "可用")
         #expect(snapshot.sites.rows.first?.tokens24h == 111)
         #expect(snapshot.sites.rows.first?.cost24h == 2.5)
         #expect(snapshot.sites.rows.first?.validationOK == true)
@@ -587,6 +709,35 @@ struct AppSmokeTests {
         #expect(requests.allSatisfy {
             $0.value(forHTTPHeaderField: "X-Access-Token") == "test-admin-access-token"
         })
+    }
+
+    @Test
+    func testXlyraOAuthImportUsesDocumentedImportEndpoint() async throws {
+        let responseData = #"{"message":"ok","data":{"imported":2,"failed":0}}"#.data(using: .utf8)!
+        let http = XlyraFakeHTTPClient(responses: [
+            "/api/v1/oauth/import": responseData
+        ])
+        let preferences = XlyraMonitorPreferences(
+            configURL: Self.temporaryXlyraConfigURL(),
+            legacyUserDefaults: nil
+        )
+        preferences.consoleURL = URL(string: "https://xlyra.example.test")!
+        try preferences.saveAdminAccessToken("test-admin-access-token")
+
+        let payload = #"{"items":[{"provider":"codex","refresh_token":"test-refresh-token"}]}"#.data(using: .utf8)!
+        let result = try await XlyraAPIMonitorService(httpClient: http).importOAuthAccounts(
+            preferences: preferences,
+            payload: payload
+        )
+
+        #expect(result.message == "ok · 导入 2 · 失败 0")
+        let requests = http.receivedRequests()
+        #expect(requests.count == 1)
+        #expect(requests.first?.httpMethod == "POST")
+        #expect(Self.key(for: requests.first?.url) == "/api/v1/oauth/import")
+        #expect(requests.first?.value(forHTTPHeaderField: "X-Access-Token") == "test-admin-access-token")
+        #expect(requests.first?.value(forHTTPHeaderField: "Content-Type") == "application/json")
+        #expect(requests.first?.httpBody == payload)
     }
 
     @MainActor
@@ -1030,7 +1181,7 @@ struct AppSmokeTests {
     """.data(using: .utf8)!
 }
 
-private final class XlyraFakeHTTPClient: HTTPClient {
+private final class XlyraFakeHTTPClient: XlyraHTTPClient {
     private let queue = DispatchQueue(label: "XlyraFakeHTTPClient.requests")
     private let responses: [String: Data]
     private var requests: [URLRequest] = []
@@ -1039,16 +1190,16 @@ private final class XlyraFakeHTTPClient: HTTPClient {
         self.responses = responses
     }
 
-    func send(_ request: URLRequest, timeout: TimeInterval) async throws -> HTTPResponse {
+    func send(_ request: URLRequest, timeout: TimeInterval) async throws -> XlyraHTTPResponse {
         queue.sync {
             requests.append(request)
         }
 
         let key = Self.key(for: request.url)
         guard let data = responses[key] else {
-            return HTTPResponse(statusCode: 404, data: Data())
+            return XlyraHTTPResponse(statusCode: 404, data: Data())
         }
-        return HTTPResponse(statusCode: 200, data: data)
+        return XlyraHTTPResponse(statusCode: 200, data: data)
     }
 
     func receivedRequests() -> [URLRequest] {

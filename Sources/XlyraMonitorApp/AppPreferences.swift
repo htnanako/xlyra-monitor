@@ -22,23 +22,27 @@ enum AppThemeMode: String, CaseIterable, Identifiable {
 @MainActor
 final class AppPreferences: ObservableObject {
     @Published private(set) var refreshIntervalSeconds: TimeInterval
+    @Published private(set) var oauthRefreshIntervalSeconds: TimeInterval
     @Published private(set) var showsMenuBarNumbers: Bool
     @Published private(set) var importDirectoryPath: String
     @Published private(set) var themeMode: AppThemeMode
 
     private let userDefaults: UserDefaults
     private let refreshIntervalKey: String
+    private let oauthRefreshIntervalKey: String
     private let showsMenuBarNumbersKey: String
     private let importDirectoryPathKey: String
     private let themeModeKey: String
 
     init(
         userDefaults: UserDefaults = .standard,
-        refreshIntervalKey: String = "sub2api.refreshIntervalSeconds",
-        showsMenuBarNumbersKey: String = "sub2api.showsMenuBarNumbers",
-        importDirectoryPathKey: String = "sub2api.importDirectoryPath",
-        themeModeKey: String = "sub2api.themeMode",
+        refreshIntervalKey: String = "xlyra.refreshIntervalSeconds",
+        oauthRefreshIntervalKey: String = "xlyra.oauthRefreshIntervalSeconds",
+        showsMenuBarNumbersKey: String = "xlyra.showsMenuBarNumbers",
+        importDirectoryPathKey: String = "xlyra.importDirectoryPath",
+        themeModeKey: String = "xlyra.themeMode",
         defaultRefreshInterval: TimeInterval = 30,
+        defaultOAuthRefreshInterval: TimeInterval = 300,
         defaultShowsMenuBarNumbers: Bool = false,
         defaultImportDirectoryPath: String = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Downloads")
@@ -47,6 +51,7 @@ final class AppPreferences: ObservableObject {
     ) {
         self.userDefaults = userDefaults
         self.refreshIntervalKey = refreshIntervalKey
+        self.oauthRefreshIntervalKey = oauthRefreshIntervalKey
         self.showsMenuBarNumbersKey = showsMenuBarNumbersKey
         self.importDirectoryPathKey = importDirectoryPathKey
         self.themeModeKey = themeModeKey
@@ -54,6 +59,10 @@ final class AppPreferences: ObservableObject {
         let savedRefreshInterval = userDefaults.object(forKey: refreshIntervalKey) as? Double
         refreshIntervalSeconds = Self.clampedRefreshInterval(
             savedRefreshInterval ?? defaultRefreshInterval
+        )
+        let savedOAuthRefreshInterval = userDefaults.object(forKey: oauthRefreshIntervalKey) as? Double
+        oauthRefreshIntervalSeconds = Self.clampedRefreshInterval(
+            savedOAuthRefreshInterval ?? defaultOAuthRefreshInterval
         )
 
         if userDefaults.object(forKey: showsMenuBarNumbersKey) == nil {
@@ -71,12 +80,22 @@ final class AppPreferences: ObservableObject {
         themeMode = savedThemeMode ?? defaultThemeMode
     }
 
-    func update(refreshIntervalSeconds: TimeInterval, showsMenuBarNumbers: Bool, themeMode: AppThemeMode) {
+    func update(
+        refreshIntervalSeconds: TimeInterval,
+        oauthRefreshIntervalSeconds: TimeInterval? = nil,
+        showsMenuBarNumbers: Bool,
+        themeMode: AppThemeMode
+    ) {
         let normalizedRefreshInterval = Self.clampedRefreshInterval(refreshIntervalSeconds)
+        let normalizedOAuthRefreshInterval = Self.clampedRefreshInterval(
+            oauthRefreshIntervalSeconds ?? self.oauthRefreshIntervalSeconds
+        )
         self.refreshIntervalSeconds = normalizedRefreshInterval
+        self.oauthRefreshIntervalSeconds = normalizedOAuthRefreshInterval
         self.showsMenuBarNumbers = showsMenuBarNumbers
         self.themeMode = themeMode
         userDefaults.set(normalizedRefreshInterval, forKey: refreshIntervalKey)
+        userDefaults.set(normalizedOAuthRefreshInterval, forKey: oauthRefreshIntervalKey)
         userDefaults.set(showsMenuBarNumbers, forKey: showsMenuBarNumbersKey)
         userDefaults.set(themeMode.rawValue, forKey: themeModeKey)
     }

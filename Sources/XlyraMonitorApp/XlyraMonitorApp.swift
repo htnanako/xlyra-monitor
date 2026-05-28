@@ -1,15 +1,19 @@
 import SwiftUI
-import Sub2APIQuotaCore
 
-public enum Sub2APIQuotaAppMetadata {
+public enum XlyraMonitorAppMetadata {
     static let menuBarTitle = "xLyra"
     static let menuBarLabel = "xLyra 监控"
     static let systemImageName = "gauge.with.dots.needle.67percent"
-    static let appIconName = "Sub2APIQuotaIcon"
+    static let appIconName = "XlyraMonitorIcon"
+    static let fallbackVersion = "0.1.0"
+
+    static var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? fallbackVersion
+    }
 }
 
 @main
-struct Sub2APIQuotaApp: App {
+struct XlyraMonitorApp: App {
     @StateObject private var container = XlyraAppContainer()
 
     var body: some Scene {
@@ -37,6 +41,13 @@ struct Sub2APIQuotaApp: App {
                 )
             }
         }
-        .defaultSize(width: 460, height: 360)
+        .defaultSize(width: 460, height: 440)
+
+        Window("导入 OAuth 账号", id: "xlyra-oauth-import") {
+            ThemedSceneContent(preferences: container.appPreferences) {
+                XlyraOAuthImportWindowView(preferences: container.appPreferences, monitor: container.monitor)
+            }
+        }
+        .defaultSize(width: 520, height: 320)
     }
 }

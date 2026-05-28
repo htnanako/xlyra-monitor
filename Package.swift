@@ -2,32 +2,22 @@
 import PackageDescription
 
 let package = Package(
-    name: "Sub2APIQuota",
+    name: "XlyraMonitor",
     platforms: [.macOS(.v14)],
     products: [
-        .library(name: "Sub2APIQuotaCore", targets: ["Sub2APIQuotaCore"]),
-        .executable(name: "Sub2APIQuotaApp", targets: ["Sub2APIQuotaApp"])
+        .executable(name: "XlyraMonitorApp", targets: ["XlyraMonitorApp"])
     ],
     dependencies: [
         .package(url: "https://github.com/swiftlang/swift-testing.git", from: "0.99.0")
     ],
     targets: [
-        .target(name: "Sub2APIQuotaCore"),
         .executableTarget(
-            name: "Sub2APIQuotaApp",
-            dependencies: ["Sub2APIQuotaCore"]
+            name: "XlyraMonitorApp"
         ),
         .testTarget(
-            name: "Sub2APIQuotaCoreTests",
+            name: "XlyraMonitorAppTests",
             dependencies: [
-                "Sub2APIQuotaCore",
-                .product(name: "Testing", package: "swift-testing")
-            ]
-        ),
-        .testTarget(
-            name: "Sub2APIQuotaAppTests",
-            dependencies: [
-                "Sub2APIQuotaApp",
+                "XlyraMonitorApp",
                 .product(name: "Testing", package: "swift-testing")
             ]
         )
