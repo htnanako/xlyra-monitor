@@ -105,7 +105,7 @@ scripts/package-dmg.sh
 生成文件位置：
 
 ```text
-.build/dist/xLyra-Monitor-0.1.1.dmg
+.build/dist/xLyra-Monitor-0.1.2.dmg
 ```
 
 DMG 只包含：

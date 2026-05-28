@@ -167,6 +167,7 @@ struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
     let expiresAt: String?
     let tokens24h: Int
     let cost24h: Double
+    let priority: Double
     let isCoolingDown: Bool
 
     var isHealthy: Bool {
@@ -197,6 +198,7 @@ struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
         expiresAt: String?,
         tokens24h: Int,
         cost24h: Double,
+        priority: Double = 0,
         isCoolingDown: Bool = false
     ) {
         self.id = id
@@ -222,6 +224,7 @@ struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
         self.expiresAt = expiresAt
         self.tokens24h = tokens24h
         self.cost24h = cost24h
+        self.priority = priority
         self.isCoolingDown = isCoolingDown
     }
 
@@ -383,6 +386,7 @@ struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
         case expiresAt = "expires_at"
         case tokens24h
         case cost24h
+        case priority
         case isCoolingDown = "is_cooling_down"
     }
 
@@ -411,6 +415,7 @@ struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
         expiresAt = try container.decodeIfPresent(String.self, forKey: .expiresAt)
         tokens24h = try container.decode(Int.self, forKey: .tokens24h)
         cost24h = try container.decode(Double.self, forKey: .cost24h)
+        priority = try container.decodeIfPresent(Double.self, forKey: .priority) ?? 0
         isCoolingDown = try container.decodeIfPresent(Bool.self, forKey: .isCoolingDown) ?? false
     }
 }
@@ -1150,7 +1155,7 @@ enum XlyraAPISnapshotBuilder {
             .map { siteRow($0, healthRows: healthRows, usageRows: siteUsageRows, cooldownRows: cooldownRows) }
             .sorted(by: siteSort)
         let oauthRows = arrayPayload(oauth)
-            .map { oauthRow($0, cooldownRows: cooldownRows) }
+            .map { oauthRow($0, siteRows: siteRows, cooldownRows: cooldownRows) }
             .sorted(by: oauthSort)
         let apiKeyRows = arrayPayload(apiKeys).map(apiKeyRow)
 
@@ -1280,12 +1285,13 @@ enum XlyraAPISnapshotBuilder {
         }
     }
 
-    private static func oauthRow(_ object: [String: Any], cooldownRows: [[String: Any]]) -> XlyraOAuthRow {
+    private static func oauthRow(_ object: [String: Any], siteRows: [XlyraSiteRow], cooldownRows: [[String: Any]]) -> XlyraOAuthRow {
         let siteName = string(object, "site_name", "site.name", "siteName")
         let siteSlug = string(object, "site_slug", "site.slug", "siteSlug")
         let accountID = string(object, "account_id", "accountID", "account.id") ?? ""
         let email = string(object, "email", "account.email") ?? ""
         let isCoolingDown = hasCooldown(siteID: siteSlug ?? accountID, slug: siteSlug ?? accountID, name: siteName ?? email, rows: cooldownRows)
+        let sitePriority = matchingSite(siteSlug: siteSlug, siteName: siteName, rows: siteRows)?.priority
         return XlyraOAuthRow(
             id: string(object, "id") ?? UUID().uuidString,
             provider: string(object, "provider") ?? "oauth",
@@ -1310,6 +1316,7 @@ enum XlyraAPISnapshotBuilder {
             expiresAt: string(object, "expires_at", "expiresAt"),
             tokens24h: int(object, "tokens24h", "tokens_24h", "usage.tokens_24h", "usage.tokens24h", "usage.total_tokens", "site.usage.total_tokens") ?? 0,
             cost24h: double(object, "cost24h", "cost_24h", "usage.cost_24h", "usage.cost24h", "usage.estimated_cost", "site.usage.estimated_cost") ?? 0,
+            priority: double(object, "priority", "routing_priority", "site.priority", "site.routing_priority") ?? sitePriority ?? 0,
             isCoolingDown: isCoolingDown
         )
     }
@@ -1318,7 +1325,7 @@ enum XlyraAPISnapshotBuilder {
         let lhsRank = statusRank(isEnabled: lhs.enabled, isCoolingDown: lhs.isCoolingDown, isHealthy: lhs.isHealthy)
         let rhsRank = statusRank(isEnabled: rhs.enabled, isCoolingDown: rhs.isCoolingDown, isHealthy: rhs.isHealthy)
         if lhsRank != rhsRank { return lhsRank < rhsRank }
-        if lhs.priority != rhs.priority { return lhs.priority < rhs.priority }
+        if lhs.priority != rhs.priority { return lhs.priority > rhs.priority }
         return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
     }
 
@@ -1326,7 +1333,14 @@ enum XlyraAPISnapshotBuilder {
         let lhsRank = statusRank(isEnabled: true, isCoolingDown: lhs.isCoolingDown, isHealthy: lhs.isHealthy)
         let rhsRank = statusRank(isEnabled: true, isCoolingDown: rhs.isCoolingDown, isHealthy: rhs.isHealthy)
         if lhsRank != rhsRank { return lhsRank < rhsRank }
+        if lhs.priority != rhs.priority { return lhs.priority > rhs.priority }
         return lhs.displayName.localizedStandardCompare(rhs.displayName) == .orderedAscending
+    }
+
+    private static func matchingSite(siteSlug: String?, siteName: String?, rows: [XlyraSiteRow]) -> XlyraSiteRow? {
+        rows.first { site in
+            site.slug == siteSlug || site.name == siteName
+        }
     }
 
     private static func statusRank(isEnabled: Bool, isCoolingDown: Bool, isHealthy: Bool) -> Int {

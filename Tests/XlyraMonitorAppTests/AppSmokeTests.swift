@@ -10,12 +10,12 @@ struct AppSmokeTests {
     func testAppTargetExposesMenuBarMetadata() {
         #expect(XlyraMonitorAppMetadata.menuBarTitle == "xLyra")
         #expect(XlyraMonitorAppMetadata.menuBarLabel == "xLyra 监控")
-        #expect(XlyraMonitorAppMetadata.fallbackVersion == "0.1.1")
+        #expect(XlyraMonitorAppMetadata.fallbackVersion == "0.1.2")
     }
 
     @Test
     func testUpdateVersionComparisonHandlesTags() {
-        #expect(XlyraVersionComparator.isVersion("v0.1.1", newerThan: "0.1.0"))
+        #expect(XlyraVersionComparator.isVersion("v0.1.2", newerThan: "0.1.0"))
         #expect(XlyraVersionComparator.isVersion("0.10.0", newerThan: "0.9.9"))
         #expect(XlyraVersionComparator.isVersion("0.1.0", newerThan: "0.1.0") == false)
         #expect(XlyraVersionComparator.isVersion("0.0.9", newerThan: "0.1.0") == false)
@@ -535,7 +535,7 @@ struct AppSmokeTests {
     }
 
     @Test
-    func testXlyraSitesAndOAuthSortByNormalCooldownErrorDisabled() throws {
+    func testXlyraSitesAndOAuthSortByStatusThenDescendingPriority() throws {
         let json = """
         {
           "ready": true,
@@ -543,19 +543,25 @@ struct AppSmokeTests {
           "site_types": [],
           "dashboard": {},
           "oauth": [
-            { "id": "oauth-error", "provider": "codex", "status": "error", "account_id": "3", "email": "error@example.com", "available": true, "limit_reached": false, "tokens24h": 0, "cost24h": 0, "site_slug": "site-error" },
-            { "id": "oauth-cooldown", "provider": "codex", "status": "connected", "account_id": "2", "email": "cooldown@example.com", "available": true, "limit_reached": false, "tokens24h": 0, "cost24h": 0, "site_slug": "site-cooldown" },
-            { "id": "oauth-normal", "provider": "codex", "status": "connected", "account_id": "1", "email": "normal@example.com", "available": true, "limit_reached": false, "tokens24h": 0, "cost24h": 0, "site_slug": "site-normal" }
+            { "id": "oauth-error-high", "provider": "codex", "status": "error", "account_id": "5", "email": "error-high@example.com", "available": true, "limit_reached": false, "tokens24h": 0, "cost24h": 0, "site_slug": "site-error-high" },
+            { "id": "oauth-error-low", "provider": "codex", "status": "error", "account_id": "4", "email": "error-low@example.com", "available": true, "limit_reached": false, "tokens24h": 0, "cost24h": 0, "site_slug": "site-error-low" },
+            { "id": "oauth-cooldown-low", "provider": "codex", "status": "connected", "account_id": "3", "email": "cooldown-low@example.com", "available": true, "limit_reached": false, "tokens24h": 0, "cost24h": 0, "site_slug": "site-cooldown-low" },
+            { "id": "oauth-cooldown-high", "provider": "codex", "status": "connected", "account_id": "2", "email": "cooldown-high@example.com", "available": true, "limit_reached": false, "tokens24h": 0, "cost24h": 0, "site_slug": "site-cooldown-high" },
+            { "id": "oauth-normal-low", "provider": "codex", "status": "connected", "account_id": "1", "email": "normal-low@example.com", "available": true, "limit_reached": false, "tokens24h": 0, "cost24h": 0, "site_slug": "site-normal-low" },
+            { "id": "oauth-normal-high", "provider": "codex", "status": "connected", "account_id": "0", "email": "normal-high@example.com", "available": true, "limit_reached": false, "tokens24h": 0, "cost24h": 0, "site_slug": "site-normal-high" }
           ],
           "sites": [
             { "id": "site-disabled", "name": "Disabled", "slug": "site-disabled", "site_type": "codex", "status": "active", "enabled": false, "routing_priority": 4, "api_key_count": 1, "model_count": 1 },
-            { "id": "site-error", "name": "Error", "slug": "site-error", "site_type": "codex", "status": "active", "enabled": true, "routing_priority": 3, "api_key_count": 1, "model_count": 1, "validation_ok": false },
-            { "id": "site-cooldown", "name": "Cooldown", "slug": "site-cooldown", "site_type": "codex", "status": "active", "enabled": true, "routing_priority": 2, "api_key_count": 1, "model_count": 1 },
-            { "id": "site-normal", "name": "Normal", "slug": "site-normal", "site_type": "codex", "status": "active", "enabled": true, "routing_priority": 1, "api_key_count": 1, "model_count": 1 }
+            { "id": "site-error-low", "name": "Error Low", "slug": "site-error-low", "site_type": "codex", "status": "active", "enabled": true, "routing_priority": 3, "api_key_count": 1, "model_count": 1, "validation_ok": false },
+            { "id": "site-error-high", "name": "Error High", "slug": "site-error-high", "site_type": "codex", "status": "active", "enabled": true, "routing_priority": 9, "api_key_count": 1, "model_count": 1, "validation_ok": false },
+            { "id": "site-cooldown-low", "name": "Cooldown Low", "slug": "site-cooldown-low", "site_type": "codex", "status": "active", "enabled": true, "routing_priority": 2, "api_key_count": 1, "model_count": 1 },
+            { "id": "site-cooldown-high", "name": "Cooldown High", "slug": "site-cooldown-high", "site_type": "codex", "status": "active", "enabled": true, "routing_priority": 8, "api_key_count": 1, "model_count": 1 },
+            { "id": "site-normal-low", "name": "Normal Low", "slug": "site-normal-low", "site_type": "codex", "status": "active", "enabled": true, "routing_priority": 1, "api_key_count": 1, "model_count": 1 },
+            { "id": "site-normal-high", "name": "Normal High", "slug": "site-normal-high", "site_type": "codex", "status": "active", "enabled": true, "routing_priority": 10, "api_key_count": 1, "model_count": 1 }
           ],
           "api_keys": [],
           "health_sites": [],
-          "cooldowns": [{ "site_id": "site-cooldown" }],
+          "cooldowns": [{ "site_id": "site-cooldown-low" }, { "site_id": "site-cooldown-high" }],
           "requests": []
         }
         """.data(using: .utf8)!
@@ -574,8 +580,24 @@ struct AppSmokeTests {
             requests: payload["requests"]!
         )
 
-        #expect(snapshot.sites.rows.map(\.slug) == ["site-normal", "site-cooldown", "site-error", "site-disabled"])
-        #expect(snapshot.oauth.rows.map(\.id) == ["oauth-normal", "oauth-cooldown", "oauth-error"])
+        #expect(snapshot.sites.rows.map(\.slug) == [
+            "site-normal-high",
+            "site-normal-low",
+            "site-cooldown-high",
+            "site-cooldown-low",
+            "site-error-high",
+            "site-error-low",
+            "site-disabled"
+        ])
+        #expect(snapshot.oauth.rows.map(\.id) == [
+            "oauth-normal-high",
+            "oauth-normal-low",
+            "oauth-cooldown-high",
+            "oauth-cooldown-low",
+            "oauth-error-high",
+            "oauth-error-low"
+        ])
+        #expect(snapshot.oauth.rows.map(\.priority) == [10, 1, 8, 2, 9, 3])
     }
 
     @MainActor

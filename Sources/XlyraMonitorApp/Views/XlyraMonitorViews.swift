@@ -332,11 +332,19 @@ struct XlyraStatusMenuView: View {
                     onSelect: state.selectDetailTab
                 )
 
+                XlyraDetailHeader(
+                    selectedTab: selectedTab,
+                    snapshot: snapshot,
+                    state: state,
+                    monitor: monitor,
+                    theme: theme
+                )
+
                 XlyraMenuScrollView {
                     VStack(alignment: .leading, spacing: 12) {
                         switch selectedTab {
                         case .oauth:
-                            XlyraOAuthPane(snapshot: snapshot, state: state, monitor: monitor, theme: theme)
+                            XlyraOAuthPane(snapshot: snapshot, theme: theme)
                         case .sites:
                             XlyraSitesPane(snapshot: snapshot, theme: theme)
                         case .apiKeys:
@@ -415,20 +423,19 @@ struct XlyraStatusMenuView: View {
     }
 
     private func estimatedDetailContentHeight(snapshot: XlyraSnapshot, tab: XlyraDetailTab) -> CGFloat {
-        let headerHeight: CGFloat = 32
         switch tab {
         case .oauth:
             let count = snapshot.oauth.rows.count
-            guard count > 0 else { return headerHeight + 44 }
-            return headerHeight + CGFloat(count) * 72 + CGFloat(max(0, count - 1)) * 7
+            guard count > 0 else { return 44 }
+            return CGFloat(count) * 72 + CGFloat(max(0, count - 1)) * 7
         case .sites:
             let count = snapshot.sites.rows.count
-            guard count > 0 else { return headerHeight + 44 }
-            return headerHeight + CGFloat(count) * 60 + CGFloat(max(0, count - 1)) * 7
+            guard count > 0 else { return 44 }
+            return CGFloat(count) * 60 + CGFloat(max(0, count - 1)) * 7
         case .apiKeys:
             let count = snapshot.apiKeys.rows.count
-            guard count > 0 else { return headerHeight + 44 }
-            return headerHeight + CGFloat(count) * 64 + CGFloat(max(0, count - 1)) * 7
+            guard count > 0 else { return 44 }
+            return CGFloat(count) * 64 + CGFloat(max(0, count - 1)) * 7
         }
     }
 }
@@ -630,22 +637,18 @@ private struct XlyraSectionHeader: View {
     }
 }
 
-private struct XlyraOAuthPane: View {
+private struct XlyraDetailHeader: View {
+    let selectedTab: XlyraDetailTab
     let snapshot: XlyraSnapshot
     @ObservedObject var state: XlyraMonitorState
     let monitor: XlyraMonitor
     let theme: MenuTheme
-    @State private var expandedAccountIDs = Set<String>()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                XlyraSectionHeader(
-                    title: "OAuth 账号",
-                    detail: "\(snapshot.oauth.liveHealthy)/\(snapshot.oauth.liveTotal) 可用",
-                    theme: theme
-                )
+        HStack(spacing: 8) {
+            XlyraSectionHeader(title: title, detail: detail, theme: theme)
 
+            if selectedTab == .oauth {
                 Button {
                     Task { await monitor.refreshOAuth() }
                 } label: {
@@ -657,7 +660,39 @@ private struct XlyraOAuthPane: View {
                 .buttonStyle(MenuToolButtonStyle(theme: theme))
                 .controlSize(.small)
             }
+        }
+    }
 
+    private var title: String {
+        switch selectedTab {
+        case .oauth:
+            return "OAuth 账号"
+        case .sites:
+            return "站点池"
+        case .apiKeys:
+            return "API Key"
+        }
+    }
+
+    private var detail: String {
+        switch selectedTab {
+        case .oauth:
+            return "\(snapshot.oauth.liveHealthy)/\(snapshot.oauth.liveTotal) 可用"
+        case .sites:
+            return "\(snapshot.sites.healthy)/\(snapshot.sites.total) 可用"
+        case .apiKeys:
+            return "\(snapshot.apiKeys.active)/\(snapshot.apiKeys.total) 启用"
+        }
+    }
+}
+
+private struct XlyraOAuthPane: View {
+    let snapshot: XlyraSnapshot
+    let theme: MenuTheme
+    @State private var expandedAccountIDs = Set<String>()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
             if snapshot.oauth.rows.isEmpty {
                 XlyraEmptyState(text: "暂无 OAuth 账号", theme: theme)
             } else {
@@ -688,12 +723,6 @@ private struct XlyraSitesPane: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            XlyraSectionHeader(
-                title: "站点池",
-                detail: "\(snapshot.sites.healthy)/\(snapshot.sites.total) 可用",
-                theme: theme
-            )
-
             VStack(alignment: .leading, spacing: 7) {
                 ForEach(snapshot.sites.rows) { site in
                     XlyraSiteRowView(site: site, theme: theme)
@@ -709,12 +738,6 @@ private struct XlyraAPIKeysPane: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            XlyraSectionHeader(
-                title: "API Key",
-                detail: "\(snapshot.apiKeys.active)/\(snapshot.apiKeys.total) 启用",
-                theme: theme
-            )
-
             if snapshot.apiKeys.rows.isEmpty {
                 XlyraEmptyState(text: "暂无 API Key", theme: theme)
             } else {
