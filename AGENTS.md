@@ -33,12 +33,12 @@
 
 ## 本地交付约定
 - 需要交付本机可用 App 时，运行 `scripts/install-app.sh` 并重启 `$HOME/Applications/xLyra Monitor.app`。
-- 用户要求“打包一份到下载目录”时，先运行 `scripts/package-dmg.sh`，再把 `.build/dist/xLyra-Monitor-<version>.dmg` 复制到 `$HOME/Downloads/`。
+- 用户要求“打包一份到下载目录”时，先运行 `scripts/package-dmg.sh`，再把 `.build/dist/xLyra-Monitor-<version>.dmg` 复制到 `$HOME/Downloads/`；默认发版或 push 不复制 DMG 到 Downloads。
 - 本地安装、重启、复制到 Downloads、测试命令和构建命令属于执行记录，只在最终回复中说明，不写进 GitHub Release 更新日志。
 
 ## GitHub 发布约定
 - 只有用户明确要求更新 GitHub、发布 Release、发版、上传 DMG，或明确说 `push` / `推上去` / `推送` 时，才执行远端推送和 Release 操作。
-- 用户说 `push` / `推上去` / `推送` 时，默认含义是：提交当前改动、推送 GitHub、打包 DMG、创建版本 tag，并发布 GitHub Release；不要只执行 `git push`。
+- 用户说 `push` / `推上去` / `推送` 时，默认含义是：提交当前改动、推送 GitHub、打包 DMG、创建版本 tag，并发布 GitHub Release；不要只执行 `git push`，也不要把 DMG 复制到 Downloads，除非用户明确要求。
 - 发版时按当前 App 版本创建 tag，例如 `v0.1.2`，并上传对应 DMG。
 - GitHub Release 更新日志只写用户可感知的 App 变化、修复和必要的下载校验信息。
 - GitHub Release 更新日志不要记录本地操作流水，例如本地安装、重启、复制 DMG 到 Downloads、运行测试、构建、打 tag、推送、使用 token 等。

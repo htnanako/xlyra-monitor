@@ -28,6 +28,7 @@ DerivedData/
 # Local configuration and credentials
 .env
 .env.*
+*.env
 *.pem
 *.key
 *.p12
@@ -36,4 +37,3 @@ DerivedData/
 # Local notes and generated docs
 API-user*.md
 docs/superpowers/
-AGENTS.md

@@ -160,19 +160,6 @@ struct XlyraModelQuota: Decodable, Equatable, Identifiable {
         return displayName.components(separatedBy: .whitespaces).first ?? model
     }
 
-    var compactName: String {
-        switch shortName {
-        case "Gemini":
-            return "Gm"
-        case "Opus":
-            return "Op"
-        case "Claude":
-            return "Cl"
-        default:
-            return String(shortName.prefix(2))
-        }
-    }
-
     var usedDisplayPercent: Double? {
         Self.usedPercent(used: usedPercent, remaining: remainingPercent)
     }
@@ -220,6 +207,37 @@ struct XlyraModelQuota: Decodable, Equatable, Identifiable {
     }
 
     private static func usedPercent(used: Double?, remaining: Double?) -> Double? {
+        XlyraPercentNormalizer.usedPercent(used: used, remaining: remaining)
+    }
+
+    private static func remainingPercent(used: Double?, remaining: Double?) -> Double? {
+        XlyraPercentNormalizer.remainingPercent(used: used, remaining: remaining)
+    }
+
+    private static func date(from value: String) -> Date? {
+        isoFormatter.date(from: value) ?? fractionalISOFormatter.date(from: value)
+    }
+
+    private static let isoFormatter = ISO8601DateFormatter()
+
+    private static let fractionalISOFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+}
+
+struct XlyraOAuthQuotaDisplay: Equatable, Identifiable {
+    let title: String
+    let usedPercent: Double?
+    let remainingPercent: Double?
+    let resetAt: Double?
+
+    var id: String { title }
+}
+
+private enum XlyraPercentNormalizer {
+    static func usedPercent(used: Double?, remaining: Double?) -> Double? {
         if let (usedPercent, _) = normalizedPercentPair(used: used, remaining: remaining) {
             return boundedPercent(usedPercent)
         }
@@ -232,7 +250,7 @@ struct XlyraModelQuota: Decodable, Equatable, Identifiable {
         return nil
     }
 
-    private static func remainingPercent(used: Double?, remaining: Double?) -> Double? {
+    static func remainingPercent(used: Double?, remaining: Double?) -> Double? {
         if let (_, remainingPercent) = normalizedPercentPair(used: used, remaining: remaining) {
             return boundedPercent(remainingPercent)
         }
@@ -279,27 +297,6 @@ struct XlyraModelQuota: Decodable, Equatable, Identifiable {
         let clamped = max(0, min(100, value))
         return (clamped * 10).rounded() / 10
     }
-
-    private static func date(from value: String) -> Date? {
-        isoFormatter.date(from: value) ?? fractionalISOFormatter.date(from: value)
-    }
-
-    private static let isoFormatter = ISO8601DateFormatter()
-
-    private static let fractionalISOFormatter: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
-}
-
-struct XlyraOAuthQuotaDisplay: Equatable, Identifiable {
-    let title: String
-    let usedPercent: Double?
-    let remainingPercent: Double?
-    let resetAt: Double?
-
-    var id: String { title }
 }
 
 struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
@@ -511,64 +508,11 @@ struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
     }
 
     private static func usedPercent(used: Double?, remaining: Double?) -> Double? {
-        if let (usedPercent, _) = normalizedPercentPair(used: used, remaining: remaining) {
-            return boundedPercent(usedPercent)
-        }
-        if let usedPercent = normalizedPercent(used) {
-            return boundedPercent(usedPercent)
-        }
-        if let remainingPercent = normalizedPercent(remaining) {
-            return boundedPercent(100 - remainingPercent)
-        }
-        return nil
+        XlyraPercentNormalizer.usedPercent(used: used, remaining: remaining)
     }
 
     private static func remainingPercent(used: Double?, remaining: Double?) -> Double? {
-        if let (_, remainingPercent) = normalizedPercentPair(used: used, remaining: remaining) {
-            return boundedPercent(remainingPercent)
-        }
-        if let remainingPercent = normalizedPercent(remaining) {
-            return boundedPercent(remainingPercent)
-        }
-        if let usedPercent = normalizedPercent(used) {
-            return boundedPercent(100 - usedPercent)
-        }
-        return nil
-    }
-
-    private static func normalizedPercentPair(used: Double?, remaining: Double?) -> (Double, Double)? {
-        guard let used, let remaining else {
-            return nil
-        }
-
-        let pairs = percentCandidates(used).flatMap { usedCandidate in
-            percentCandidates(remaining).map { remainingCandidate in
-                (usedCandidate, remainingCandidate)
-            }
-        }
-        return pairs.min { lhs, rhs in
-            abs((lhs.0 + lhs.1) - 100) < abs((rhs.0 + rhs.1) - 100)
-        }
-    }
-
-    private static func normalizedPercent(_ value: Double?) -> Double? {
-        guard let value else { return nil }
-        if value > 0, value <= 1 {
-            return value * 100
-        }
-        return value
-    }
-
-    private static func percentCandidates(_ value: Double) -> [Double] {
-        guard value > 0, value <= 1 else {
-            return [value]
-        }
-        return [value * 100, value]
-    }
-
-    private static func boundedPercent(_ value: Double) -> Double {
-        let clamped = max(0, min(100, value))
-        return (clamped * 10).rounded() / 10
+        XlyraPercentNormalizer.remainingPercent(used: used, remaining: remaining)
     }
 
     private static func percentText(_ value: Double) -> String {
@@ -1508,6 +1452,9 @@ enum XlyraAPISnapshotBuilder {
 
         let modelRows = array(
             object,
+            "model_quotas",
+            "meta.model_quotas",
+            "metadata.model_quotas",
             "meta.models",
             "metadata.models",
             "site.sync_state.user_summary.user_models.data"
@@ -1525,9 +1472,10 @@ enum XlyraAPISnapshotBuilder {
             return XlyraModelQuota(
                 model: modelName,
                 displayName: displayName,
-                usedPercent: double(model, "quota.used_percent", "capabilities.quota.used_percent"),
-                remainingPercent: double(model, "quota.remaining_percent", "capabilities.quota.remaining_percent"),
-                resetAt: double(model, "quota.reset_at", "capabilities.quota.reset_at") ?? timestamp(model, "quota.reset_time", "capabilities.quota.reset_time")
+                usedPercent: double(model, "used_percent", "quota.used_percent", "capabilities.quota.used_percent"),
+                remainingPercent: double(model, "remaining_percent", "quota.remaining_percent", "capabilities.quota.remaining_percent"),
+                resetAt: double(model, "reset_at", "quota.reset_at", "capabilities.quota.reset_at")
+                    ?? timestamp(model, "reset_time", "quota.reset_time", "capabilities.quota.reset_time")
             )
         }
     }
@@ -1946,6 +1894,7 @@ final class XlyraAppContainer: ObservableObject {
     let appPreferences = AppPreferences()
     let monitorPreferences = XlyraMonitorPreferences()
     let loginItem = LoginItemService()
+    let updateCoordinator = XlyraAppUpdateCoordinator()
     let monitor: XlyraMonitor
     private var cancellables = Set<AnyCancellable>()
 
@@ -1987,6 +1936,7 @@ final class XlyraAppContainer: ObservableObject {
             statusInterval: appPreferences.refreshIntervalSeconds,
             oauthInterval: appPreferences.oauthRefreshIntervalSeconds
         )
+        updateCoordinator.startAutomaticChecks()
         applyAppIcon()
         keepAppOutOfDock()
     }

@@ -10,12 +10,12 @@ struct AppSmokeTests {
     func testAppTargetExposesMenuBarMetadata() {
         #expect(XlyraMonitorAppMetadata.menuBarTitle == "xLyra")
         #expect(XlyraMonitorAppMetadata.menuBarLabel == "xLyra 监控")
-        #expect(XlyraMonitorAppMetadata.fallbackVersion == "0.1.4")
+        #expect(XlyraMonitorAppMetadata.fallbackVersion == "0.1.7")
     }
 
     @Test
     func testUpdateVersionComparisonHandlesTags() {
-        #expect(XlyraVersionComparator.isVersion("v0.1.4", newerThan: "0.1.0"))
+        #expect(XlyraVersionComparator.isVersion("v0.1.7", newerThan: "0.1.0"))
         #expect(XlyraVersionComparator.isVersion("0.10.0", newerThan: "0.9.9"))
         #expect(XlyraVersionComparator.isVersion("0.1.0", newerThan: "0.1.0") == false)
         #expect(XlyraVersionComparator.isVersion("0.0.9", newerThan: "0.1.0") == false)
@@ -63,6 +63,12 @@ struct AppSmokeTests {
 
         #expect(release.tagName == "v0.2.0")
         #expect(release.assets.first?.name == "xLyra-Monitor-0.2.0.dmg")
+    }
+
+    @MainActor
+    @Test
+    func testAutomaticUpdateChecksRunEveryFiveMinutes() {
+        #expect(XlyraAppUpdateCoordinator.automaticCheckInterval == 300)
     }
 
     @Test
@@ -233,8 +239,8 @@ struct AppSmokeTests {
         #expect(site.stateText == "可用")
     }
 
-    @Test
     @MainActor
+    @Test
     func testMonitorTitleReflectsConnectionStateInsteadOfBusinessHealth() {
         let state = XlyraMonitorState()
         let snapshot = XlyraSnapshot(
@@ -605,7 +611,7 @@ struct AppSmokeTests {
     }
 
     @Test
-    func testXlyraAntigravityOAuthParsesTargetModelQuotas() throws {
+    func testXlyraAntigravityOAuthUsesRemainingModelQuotaForProgressColor() throws {
         let json = """
         {
           "oauth": {
@@ -684,6 +690,84 @@ struct AppSmokeTests {
         #expect(snapshot.oauth.weeklyCapacity.remainingFraction == 0)
         #expect(snapshot.oauth.primaryCapacityLabel == "5h")
         #expect(snapshot.oauth.secondaryCapacityLabel == "7d")
+    }
+
+    @Test
+    func testXlyraAntigravityOAuthParsesTargetModelQuotas() throws {
+        let json = """
+        {
+          "oauth": {
+            "items": [
+              {
+                "id": "oauth-antigravity",
+                "provider": "antigravity",
+                "status": "connected",
+                "account_id": "ag-user",
+                "email": "ag@example.com",
+                "available": true,
+                "limit_reached": false,
+                "meta": {
+                  "models": [
+                    {
+                      "id": "gemini-pro-agent",
+                      "name": "gemini-pro-agent",
+                      "upstream_model_name": "gemini-pro-agent",
+                      "display_name": "Gemini 3.1 Pro (High)",
+                      "quota": {
+                        "name": "gemini-pro-agent",
+                        "display_name": "Gemini 3.1 Pro (High)",
+                        "used_percent": 82,
+                        "remaining_percent": 18,
+                        "reset_time": "2026-06-04T08:25:24Z"
+                      }
+                    },
+                    {
+                      "id": "claude-opus-4-6-thinking",
+                      "name": "claude-opus-4-6-thinking",
+                      "upstream_model_name": "claude-opus-4-6-thinking",
+                      "display_name": "Claude Opus 4.6 (Thinking)",
+                      "quota": {
+                        "name": "claude-opus-4-6-thinking",
+                        "display_name": "Claude Opus 4.6 (Thinking)",
+                        "used_percent": 5,
+                        "remaining_percent": 95,
+                        "reset_at": 1780561524
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "sites": [],
+          "api_keys": [],
+          "dashboard": {},
+          "health_sites": [],
+          "cooldowns": [],
+          "requests": []
+        }
+        """.data(using: .utf8)!
+        let payload = try JSONSerialization.jsonObject(with: json) as! [String: Any]
+
+        let snapshot = try XlyraAPISnapshotBuilder.snapshot(
+            ready: (),
+            version: [:],
+            siteTypes: [],
+            overview: payload["dashboard"]!,
+            oauth: payload["oauth"]!,
+            sites: payload["sites"]!,
+            apiKeys: payload["api_keys"]!,
+            healthSites: payload["health_sites"]!,
+            cooldowns: payload["cooldowns"]!,
+            requests: payload["requests"]!
+        )
+
+        let account = try #require(snapshot.oauth.rows.first)
+        #expect(account.modelQuotas.map(\.model) == ["gemini-pro-agent", "claude-opus-4-6-thinking"])
+        #expect(account.quotaText == "Gemini 剩 18% · Opus 剩 95%")
+        #expect(account.quotaDisplays.map(\.title) == ["Gemini", "Opus"])
+        #expect(account.quotaDisplays.first?.usedPercent == 82)
+        #expect(account.quotaProgressColorName(remainingPercent: account.quotaDisplays.first?.remainingPercent) == "orange")
     }
 
     @Test
@@ -768,7 +852,8 @@ struct AppSmokeTests {
             state: state,
             preferences: preferences,
             monitorPreferences: monitorPreferences,
-            monitor: monitor
+            monitor: monitor,
+            updateCoordinator: XlyraAppUpdateCoordinator()
         )
 
         let hostingView = NSHostingView(rootView: view)

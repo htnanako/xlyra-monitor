@@ -1,3 +1,5 @@
+import AppKit
+import Combine
 import Foundation
 
 struct XlyraAppUpdate: Equatable {
@@ -13,6 +15,7 @@ enum XlyraAppUpdateError: Error, Equatable {
     case requestFailed(Int)
     case noInstallerAsset
     case downloadFailed
+    case installFailed
 
     var message: String {
         switch self {
@@ -24,6 +27,36 @@ enum XlyraAppUpdateError: Error, Equatable {
             return "最新版本没有可下载的 DMG 安装包"
         case .downloadFailed:
             return "更新包下载失败"
+        case .installFailed:
+            return "更新安装失败"
+        }
+    }
+}
+
+enum XlyraUpdateStatus: Equatable {
+    case idle
+    case checking
+    case upToDate
+    case available(XlyraAppUpdate)
+    case downloading(XlyraAppUpdate)
+    case installing(XlyraAppUpdate)
+    case failed(String)
+
+    var availableUpdate: XlyraAppUpdate? {
+        switch self {
+        case .available(let update), .downloading(let update), .installing(let update):
+            return update
+        default:
+            return nil
+        }
+    }
+
+    var isBusy: Bool {
+        switch self {
+        case .checking, .downloading, .installing:
+            return true
+        default:
+            return false
         }
     }
 }
@@ -140,6 +173,72 @@ struct XlyraAppUpdateService {
         return destinationURL
     }
 
+    func launchInstaller(
+        for downloadedDMGURL: URL,
+        targetAppURL: URL = Bundle.main.bundleURL,
+        currentProcessID: Int32 = ProcessInfo.processInfo.processIdentifier
+    ) throws {
+        let scriptURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("xlyra-monitor-update-\(UUID().uuidString).sh")
+        let mountURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("xlyra-monitor-update-\(UUID().uuidString)")
+        let appName = targetAppURL.lastPathComponent
+        let temporaryTargetURL = targetAppURL
+            .deletingLastPathComponent()
+            .appendingPathComponent(".\(appName).updating")
+
+        let script = """
+        #!/bin/sh
+        set -eu
+
+        DMG=\(Self.shellQuote(downloadedDMGURL.path))
+        TARGET=\(Self.shellQuote(targetAppURL.path))
+        TMP_TARGET=\(Self.shellQuote(temporaryTargetURL.path))
+        MOUNT=\(Self.shellQuote(mountURL.path))
+        APP_NAME=\(Self.shellQuote(appName))
+        OLD_PID=\(currentProcessID)
+
+        cleanup() {
+          /usr/bin/hdiutil detach "$MOUNT" >/dev/null 2>&1 || true
+          /bin/rm -rf "$MOUNT" "$TMP_TARGET" "$0"
+        }
+        trap cleanup EXIT
+
+        while /bin/kill -0 "$OLD_PID" >/dev/null 2>&1; do
+          /bin/sleep 0.2
+        done
+
+        /bin/mkdir -p "$MOUNT"
+        /usr/bin/hdiutil attach "$DMG" -nobrowse -readonly -mountpoint "$MOUNT" >/dev/null
+        SOURCE="$MOUNT/$APP_NAME"
+        if [ ! -d "$SOURCE" ]; then
+          SOURCE="$(/usr/bin/find "$MOUNT" -maxdepth 2 -name '*.app' -print -quit)"
+        fi
+        if [ -z "${SOURCE:-}" ] || [ ! -d "$SOURCE" ]; then
+          exit 1
+        fi
+
+        /bin/rm -rf "$TMP_TARGET"
+        /usr/bin/ditto "$SOURCE" "$TMP_TARGET"
+        /bin/rm -rf "$TARGET"
+        /bin/mv "$TMP_TARGET" "$TARGET"
+        /usr/bin/open "$TARGET"
+        """
+
+        do {
+            try FileManager.default.createDirectory(at: mountURL, withIntermediateDirectories: true)
+            try script.write(to: scriptURL, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: scriptURL.path)
+
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/bin/sh")
+            process.arguments = [scriptURL.path]
+            try process.run()
+        } catch {
+            throw XlyraAppUpdateError.installFailed
+        }
+    }
+
     static func installerAsset(from assets: [XlyraGitHubReleaseAsset]) -> XlyraGitHubReleaseAsset? {
         assets.first { asset in
             let name = asset.name.lowercased()
@@ -172,6 +271,84 @@ struct XlyraAppUpdateService {
     private func uniqueDestinationURL(for assetName: String) -> URL {
         let safeName = assetName.isEmpty ? "xLyra-Monitor.dmg" : assetName
         return downloadsDirectoryURL.appendingPathComponent(safeName)
+    }
+
+    private static func shellQuote(_ value: String) -> String {
+        "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
+    }
+}
+
+@MainActor
+final class XlyraAppUpdateCoordinator: ObservableObject {
+    static let automaticCheckInterval: TimeInterval = 300
+
+    @Published private(set) var updateStatus: XlyraUpdateStatus = .idle
+
+    private let updateService: XlyraAppUpdateService
+    private var automaticCheckTask: Task<Void, Never>?
+
+    init(updateService: XlyraAppUpdateService = XlyraAppUpdateService()) {
+        self.updateService = updateService
+    }
+
+    deinit {
+        automaticCheckTask?.cancel()
+    }
+
+    func startAutomaticChecks() {
+        guard automaticCheckTask == nil else { return }
+        automaticCheckTask = Task { [weak self] in
+            await self?.checkForUpdate(silent: true)
+
+            while Task.isCancelled == false {
+                try? await Task.sleep(nanoseconds: UInt64(Self.automaticCheckInterval * 1_000_000_000))
+                guard Task.isCancelled == false else { return }
+                await self?.checkForUpdate(silent: true)
+            }
+        }
+    }
+
+    func checkForUpdate(silent: Bool = false) async {
+        guard updateStatus.isBusy == false else { return }
+        if silent == false {
+            updateStatus = .checking
+        }
+
+        do {
+            if let update = try await updateService.latestUpdate(currentVersion: XlyraMonitorAppMetadata.appVersion) {
+                updateStatus = .available(update)
+            } else if silent == false || updateStatus.availableUpdate == nil {
+                updateStatus = .upToDate
+            }
+        } catch let error as XlyraAppUpdateError {
+            if silent == false {
+                updateStatus = .failed(error.message)
+            }
+        } catch {
+            if silent == false {
+                updateStatus = .failed("检查更新失败")
+            }
+        }
+    }
+
+    func installAvailableUpdate() {
+        guard let update = updateStatus.availableUpdate, updateStatus.isBusy == false else {
+            return
+        }
+
+        updateStatus = .downloading(update)
+        Task { [updateService] in
+            do {
+                let downloadedURL = try await updateService.download(update)
+                updateStatus = .installing(update)
+                try updateService.launchInstaller(for: downloadedURL)
+                NSApplication.shared.terminate(nil)
+            } catch let error as XlyraAppUpdateError {
+                updateStatus = .failed(error.message)
+            } catch {
+                updateStatus = .failed("更新安装失败")
+            }
+        }
     }
 }
 
