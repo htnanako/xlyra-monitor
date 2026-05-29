@@ -367,6 +367,7 @@ struct XlyraStatusMenuView: View {
                             XlyraAPIKeysPane(snapshot: snapshot, theme: theme)
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
                     .background(XlyraDetailContentHeightReader())
                 }
                 .frame(height: detailHeight)
@@ -522,10 +523,9 @@ private struct XlyraMenuScrollView<Content: View>: View {
             content
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .padding(.horizontal, 1)
-                .padding(.trailing, 12)
                 .padding(.vertical, XlyraMenuLayout.scrollVerticalInset)
         }
-        .scrollIndicators(.visible)
+        .scrollIndicators(.hidden)
         .scrollBounceBehavior(.always, axes: .vertical)
         .defaultScrollAnchor(.top)
     }
@@ -752,9 +752,11 @@ private struct XlyraOAuthPane: View {
                         }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -769,7 +771,9 @@ private struct XlyraSitesPane: View {
                     XlyraSiteRowView(site: site, theme: theme)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -787,8 +791,10 @@ private struct XlyraAPIKeysPane: View {
                         XlyraAPIKeyRowView(apiKey: apiKey, theme: theme)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -891,6 +897,7 @@ private struct XlyraOAuthRowView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(theme.card)
@@ -1113,6 +1120,7 @@ private struct XlyraSiteRowView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(theme.card)
@@ -1197,6 +1205,7 @@ private struct XlyraAPIKeyRowView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 8).fill(theme.card))
     }
 }
