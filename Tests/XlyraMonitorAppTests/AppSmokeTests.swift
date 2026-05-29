@@ -325,8 +325,7 @@ struct AppSmokeTests {
     @Test
     func testXlyraMonitorPreferencesStartWithoutBundledConsoleURL() throws {
         let preferences = XlyraMonitorPreferences(
-            configURL: Self.temporaryXlyraConfigURL(),
-            legacyUserDefaults: nil
+            configURL: Self.temporaryXlyraConfigURL()
         )
 
         #expect(preferences.consoleURL == nil)
@@ -462,17 +461,17 @@ struct AppSmokeTests {
         #expect(snapshot.oauth.healthy == 5)
         #expect(snapshot.oauth.liveTotal == 5)
         #expect(snapshot.oauth.liveHealthy == 4)
-        #expect(snapshot.oauth.fiveHourCapacity.shortText == "21.5%")
-        #expect(abs(snapshot.oauth.fiveHourCapacity.usedFraction - 0.215) < 0.0001)
-        #expect(snapshot.oauth.weeklyCapacity.shortText == "35%")
-        #expect(abs(snapshot.oauth.weeklyCapacity.usedFraction - 0.35) < 0.0001)
+        #expect(snapshot.oauth.fiveHourCapacity.shortText == "78.5%")
+        #expect(abs(snapshot.oauth.fiveHourCapacity.remainingFraction - 0.785) < 0.0001)
+        #expect(snapshot.oauth.weeklyCapacity.shortText == "65%")
+        #expect(abs(snapshot.oauth.weeklyCapacity.remainingFraction - 0.65) < 0.0001)
         #expect(snapshot.oauth.rows[0].planDisplayText == "PLUS")
         #expect(snapshot.oauth.rows[1].planDisplayText == "TEAM")
         #expect(snapshot.riskItems.contains("OAuth 异常 1 个"))
     }
 
     @Test
-    func testXlyraOAuthMenuBarCapacityAveragesUsedPercentAcrossHealthyAccounts() throws {
+    func testXlyraOAuthMenuBarCapacityAveragesRemainingPercentAcrossHealthyAccounts() throws {
         let data = """
         {
           "generated_at": "2026-05-27T06:53:41.872526+00:00",
@@ -552,22 +551,22 @@ struct AppSmokeTests {
 
         let snapshot = try JSONDecoder().decode(XlyraSnapshot.self, from: data)
 
-        #expect(snapshot.oauth.fiveHourCapacity.shortText == "40%")
-        #expect(abs(snapshot.oauth.fiveHourCapacity.usedFraction - 0.40) < 0.0001)
+        #expect(snapshot.oauth.fiveHourCapacity.shortText == "60%")
+        #expect(abs(snapshot.oauth.fiveHourCapacity.remainingFraction - 0.60) < 0.0001)
         #expect(snapshot.oauth.fiveHourCapacity.riskColorName == "green")
-        #expect(snapshot.oauth.weeklyCapacity.shortText == "90%")
-        #expect(abs(snapshot.oauth.weeklyCapacity.usedFraction - 0.90) < 0.0001)
-        #expect(snapshot.oauth.weeklyCapacity.riskColorName == "red")
+        #expect(snapshot.oauth.weeklyCapacity.shortText == "10%")
+        #expect(abs(snapshot.oauth.weeklyCapacity.remainingFraction - 0.10) < 0.0001)
+        #expect(snapshot.oauth.weeklyCapacity.riskColorName == "orange")
     }
 
     @Test
-    func testXlyraOAuthUsageRiskColorsFollowConfiguredBands() {
-        #expect(XlyraOAuthCapacity(averageUsedPercent: 59).riskColorName == "green")
-        #expect(XlyraOAuthCapacity(averageUsedPercent: 60).riskColorName == "yellow")
-        #expect(XlyraOAuthCapacity(averageUsedPercent: 79).riskColorName == "yellow")
-        #expect(XlyraOAuthCapacity(averageUsedPercent: 80).riskColorName == "orange")
-        #expect(XlyraOAuthCapacity(averageUsedPercent: 89).riskColorName == "orange")
-        #expect(XlyraOAuthCapacity(averageUsedPercent: 90).riskColorName == "red")
+    func testXlyraOAuthRemainingRiskColorsFollowConfiguredBands() {
+        #expect(XlyraOAuthCapacity(averageRemainingPercent: 39).riskColorName == "yellow")
+        #expect(XlyraOAuthCapacity(averageRemainingPercent: 20).riskColorName == "yellow")
+        #expect(XlyraOAuthCapacity(averageRemainingPercent: 19).riskColorName == "orange")
+        #expect(XlyraOAuthCapacity(averageRemainingPercent: 10).riskColorName == "orange")
+        #expect(XlyraOAuthCapacity(averageRemainingPercent: 9).riskColorName == "red")
+        #expect(XlyraOAuthCapacity(averageRemainingPercent: 40).riskColorName == "green")
     }
 
     @Test
@@ -581,14 +580,14 @@ struct AppSmokeTests {
           "email": "limited@example.com",
           "available": true,
           "limit_reached": true,
-          "five_hour_used_percent": 82,
+          "five_hour_remaining_percent": 18,
           "tokens24h": 0,
           "cost24h": 0
         }
         """.data(using: .utf8)!)
 
         #expect(account.stateText == "额度触顶")
-        #expect(account.quotaProgressColorName(usedPercent: account.fiveHourUsedDisplayPercent) == "orange")
+        #expect(account.quotaProgressColorName(remainingPercent: account.fiveHourRemainingDisplayPercent) == "orange")
     }
 
     @Test
@@ -602,13 +601,95 @@ struct AppSmokeTests {
           "email": "error@example.com",
           "available": true,
           "limit_reached": false,
-          "five_hour_used_percent": 92,
+          "five_hour_remaining_percent": 8,
           "tokens24h": 0,
           "cost24h": 0
         }
         """.data(using: .utf8)!)
 
-        #expect(account.quotaProgressColorName(usedPercent: account.fiveHourUsedDisplayPercent) == "gray")
+        #expect(account.quotaProgressColorName(remainingPercent: account.fiveHourRemainingDisplayPercent) == "gray")
+    }
+
+    @Test
+    func testXlyraAntigravityOAuthUsesRemainingModelQuotaForProgressColor() throws {
+        let json = """
+        {
+          "oauth": {
+            "items": [
+              {
+                "id": "oauth-antigravity",
+                "provider": "antigravity",
+                "status": "connected",
+                "account_id": "ag-user",
+                "email": "ag@example.com",
+                "available": true,
+                "limit_reached": false,
+                "meta": {
+                  "models": [
+                    {
+                      "id": "gemini-pro-agent",
+                      "name": "gemini-pro-agent",
+                      "upstream_model_name": "gemini-pro-agent",
+                      "display_name": "Gemini 3.1 Pro (High)",
+                      "quota": {
+                        "name": "gemini-pro-agent",
+                        "display_name": "Gemini 3.1 Pro (High)",
+                        "used_percent": 12,
+                        "remaining_percent": 88,
+                        "reset_time": "2026-06-04T08:25:24Z"
+                      }
+                    },
+                    {
+                      "id": "claude-opus-4-6-thinking",
+                      "name": "claude-opus-4-6-thinking",
+                      "upstream_model_name": "claude-opus-4-6-thinking",
+                      "display_name": "Claude Opus 4.6 (Thinking)",
+                      "quota": {
+                        "name": "claude-opus-4-6-thinking",
+                        "display_name": "Claude Opus 4.6 (Thinking)",
+                        "used_percent": 5,
+                        "remaining_percent": 95,
+                        "reset_at": 1780561524
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "sites": [],
+          "api_keys": [],
+          "dashboard": {},
+          "health_sites": [],
+          "cooldowns": [],
+          "requests": []
+        }
+        """.data(using: .utf8)!
+        let payload = try JSONSerialization.jsonObject(with: json) as! [String: Any]
+
+        let snapshot = try XlyraAPISnapshotBuilder.snapshot(
+            ready: (),
+            version: [:],
+            siteTypes: [],
+            overview: payload["dashboard"]!,
+            oauth: payload["oauth"]!,
+            sites: payload["sites"]!,
+            apiKeys: payload["api_keys"]!,
+            healthSites: payload["health_sites"]!,
+            cooldowns: payload["cooldowns"]!,
+            requests: payload["requests"]!
+        )
+
+        let account = try #require(snapshot.oauth.rows.first)
+        #expect(account.modelQuotas.map(\.model) == ["gemini-pro-agent", "claude-opus-4-6-thinking"])
+        #expect(account.quotaText == "Gemini 剩 88% · Opus 剩 95%")
+        #expect(account.quotaDisplays.map(\.title) == ["Gemini", "Opus"])
+        #expect(snapshot.oauth.fiveHourCapacity.shortText == "--")
+        #expect(snapshot.oauth.fiveHourCapacity.remainingFraction == 0)
+        #expect(snapshot.oauth.weeklyCapacity.shortText == "--")
+        #expect(snapshot.oauth.weeklyCapacity.remainingFraction == 0)
+        #expect(snapshot.oauth.primaryCapacityLabel == "5h")
+        #expect(snapshot.oauth.secondaryCapacityLabel == "7d")
     }
 
     @Test
@@ -686,7 +767,7 @@ struct AppSmokeTests {
         #expect(account.quotaText == "Gemini 剩 18% · Opus 剩 95%")
         #expect(account.quotaDisplays.map(\.title) == ["Gemini", "Opus"])
         #expect(account.quotaDisplays.first?.usedPercent == 82)
-        #expect(account.quotaProgressColorName(usedPercent: account.quotaDisplays.first?.usedPercent) == "orange")
+        #expect(account.quotaProgressColorName(remainingPercent: account.quotaDisplays.first?.remainingPercent) == "orange")
     }
 
     @Test
@@ -764,8 +845,7 @@ struct AppSmokeTests {
 
         let preferences = AppPreferences(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
         let monitorPreferences = XlyraMonitorPreferences(
-            configURL: Self.temporaryXlyraConfigURL(),
-            legacyUserDefaults: nil
+            configURL: Self.temporaryXlyraConfigURL()
         )
         let monitor = XlyraMonitor(state: state, preferences: monitorPreferences)
         let view = XlyraStatusMenuView(
@@ -803,8 +883,7 @@ struct AppSmokeTests {
             "/api/v1/requests?page=1&page_size=50": Self.apiRequestsData
         ])
         let preferences = XlyraMonitorPreferences(
-            configURL: Self.temporaryXlyraConfigURL(),
-            legacyUserDefaults: nil
+            configURL: Self.temporaryXlyraConfigURL()
         )
         preferences.consoleURL = URL(string: "https://xlyra.example.test")!
         try preferences.saveAdminAccessToken("test-admin-access-token")
@@ -867,8 +946,7 @@ struct AppSmokeTests {
             "/api/v1/oauth/connections/oauth-2/refresh": Data()
         ])
         let preferences = XlyraMonitorPreferences(
-            configURL: Self.temporaryXlyraConfigURL(),
-            legacyUserDefaults: nil
+            configURL: Self.temporaryXlyraConfigURL()
         )
         preferences.consoleURL = URL(string: "https://xlyra.example.test")!
         try preferences.saveAdminAccessToken("test-admin-access-token")
@@ -896,8 +974,7 @@ struct AppSmokeTests {
             "/api/v1/oauth/import": responseData
         ])
         let preferences = XlyraMonitorPreferences(
-            configURL: Self.temporaryXlyraConfigURL(),
-            legacyUserDefaults: nil
+            configURL: Self.temporaryXlyraConfigURL()
         )
         preferences.consoleURL = URL(string: "https://xlyra.example.test")!
         try preferences.saveAdminAccessToken("test-admin-access-token")

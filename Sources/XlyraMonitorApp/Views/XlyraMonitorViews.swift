@@ -46,11 +46,11 @@ struct MenuTheme {
 
     init(mode: AppThemeMode, systemColorScheme: ColorScheme) {
         isDark = mode.resolvesToDark(systemColorScheme: systemColorScheme)
-        background = isDark ? Color(red: 0.08, green: 0.09, blue: 0.10) : Color(red: 0.96, green: 0.97, blue: 0.98)
-        card = isDark ? Color(red: 0.13, green: 0.14, blue: 0.15) : .white
-        elevatedCard = isDark ? Color(red: 0.18, green: 0.19, blue: 0.20) : Color(red: 0.98, green: 0.99, blue: 1.0)
-        control = isDark ? Color.white.opacity(0.10) : Color.black.opacity(0.06)
-        separator = isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.10)
+        background = .clear
+        card = isDark ? Color.white.opacity(0.08) : Color.white.opacity(0.48)
+        elevatedCard = isDark ? Color.white.opacity(0.12) : Color.white.opacity(0.62)
+        control = isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.07)
+        separator = isDark ? Color.white.opacity(0.13) : Color.black.opacity(0.10)
         text = isDark ? .white : Color(red: 0.10, green: 0.11, blue: 0.13)
         secondary = isDark ? Color.white.opacity(0.62) : Color.black.opacity(0.58)
         tertiary = isDark ? Color.white.opacity(0.42) : Color.black.opacity(0.42)
@@ -94,7 +94,7 @@ private enum XlyraRiskPalette {
     }
 }
 
-enum MenuBarQuotaImageRenderer {
+enum MenuBarStatusColorRenderer {
     static func color(for colorName: String) -> NSColor {
         XlyraRiskPalette.nsColor(forRiskName: colorName)
     }
@@ -175,10 +175,10 @@ enum XlyraMenuBarImageRenderer {
             palette: palette
         )
         drawRow(
-            label: "5h",
+            label: snapshot.oauth.primaryCapacityLabel,
             value: fiveHourCapacity.shortText,
-            progress: fiveHourCapacity.usedFraction,
-            tint: MenuBarQuotaImageRenderer.color(for: fiveHourCapacity.riskColorName),
+            progress: fiveHourCapacity.remainingFraction,
+            tint: MenuBarStatusColorRenderer.color(for: fiveHourCapacity.riskColorName),
             palette: palette,
             labelX: labelX,
             barX: barX,
@@ -189,10 +189,10 @@ enum XlyraMenuBarImageRenderer {
             y: 12
         )
         drawRow(
-            label: "7d",
+            label: snapshot.oauth.secondaryCapacityLabel,
             value: weeklyCapacity.shortText,
-            progress: weeklyCapacity.usedFraction,
-            tint: MenuBarQuotaImageRenderer.color(for: weeklyCapacity.riskColorName),
+            progress: weeklyCapacity.remainingFraction,
+            tint: MenuBarStatusColorRenderer.color(for: weeklyCapacity.riskColorName),
             palette: palette,
             labelX: labelX,
             barX: barX,
@@ -214,7 +214,7 @@ enum XlyraMenuBarImageRenderer {
         image.lockFocus()
         defer { image.unlockFocus() }
 
-        MenuBarQuotaImageRenderer.color(for: colorName).setFill()
+        MenuBarStatusColorRenderer.color(for: colorName).setFill()
         NSBezierPath(ovalIn: CGRect(x: 1, y: 4.5, width: 9, height: 9)).fill()
         drawText(
             text,
@@ -280,7 +280,7 @@ enum XlyraMenuBarImageRenderer {
 
     private static func drawStatusMark(colorName: String, centerText: String, in rect: CGRect, palette: MenuBarPalette) {
         let ring = NSBezierPath(ovalIn: rect.insetBy(dx: 1.1, dy: 1.1))
-        MenuBarQuotaImageRenderer.color(for: colorName).setStroke()
+        MenuBarStatusColorRenderer.color(for: colorName).setStroke()
         ring.lineWidth = 1.8
         ring.stroke()
 
@@ -367,6 +367,7 @@ struct XlyraStatusMenuView: View {
                             XlyraAPIKeysPane(snapshot: snapshot, theme: theme)
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
                     .background(XlyraDetailContentHeightReader())
                 }
                 .frame(height: detailHeight)
@@ -427,7 +428,7 @@ struct XlyraStatusMenuView: View {
         }
         .padding(12)
         .frame(width: XlyraMenuLayout.width)
-        .background(theme.background)
+        .background(.regularMaterial)
         .preferredColorScheme(preferences.themeMode.preferredColorScheme)
     }
 
@@ -522,10 +523,9 @@ private struct XlyraMenuScrollView<Content: View>: View {
             content
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .padding(.horizontal, 1)
-                .padding(.trailing, 12)
                 .padding(.vertical, XlyraMenuLayout.scrollVerticalInset)
         }
-        .scrollIndicators(.visible)
+        .scrollIndicators(.hidden)
         .scrollBounceBehavior(.always, axes: .vertical)
         .defaultScrollAnchor(.top)
     }
@@ -752,9 +752,11 @@ private struct XlyraOAuthPane: View {
                         }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -769,7 +771,9 @@ private struct XlyraSitesPane: View {
                     XlyraSiteRowView(site: site, theme: theme)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -787,8 +791,10 @@ private struct XlyraAPIKeysPane: View {
                         XlyraAPIKeyRowView(apiKey: apiKey, theme: theme)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -880,7 +886,7 @@ private struct XlyraOAuthRowView: View {
                             resetText: resetText(for: quota),
                             resetHelpText: resetHelpText,
                             onToggleResetTime: onToggleResetTime,
-                            tint: quotaTint(for: quota.usedPercent),
+                            tint: quotaTint(for: quota.remainingPercent),
                             theme: theme
                         )
                     }
@@ -891,6 +897,7 @@ private struct XlyraOAuthRowView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(theme.card)
@@ -934,8 +941,8 @@ private struct XlyraOAuthRowView: View {
         return "重置 \(XlyraFormat.resetTime(quota.resetAt))"
     }
 
-    private func quotaTint(for usedPercent: Double?) -> Color {
-        theme.color(forRiskName: account.quotaProgressColorName(usedPercent: usedPercent))
+    private func quotaTint(for remainingPercent: Double?) -> Color {
+        theme.color(forRiskName: account.quotaProgressColorName(remainingPercent: remainingPercent))
     }
 }
 
@@ -980,7 +987,7 @@ private struct XlyraOAuthQuotaBar: View {
                 .help(resetHelpText)
             }
 
-            XlyraUsageBar(progress: usedFraction, tint: tint, track: theme.control)
+            XlyraUsageBar(progress: remainingFraction, tint: tint, track: theme.control)
                 .frame(height: 6)
         }
         .padding(.horizontal, 9)
@@ -991,9 +998,9 @@ private struct XlyraOAuthQuotaBar: View {
         )
     }
 
-    private var usedFraction: Double {
-        guard let usedPercent else { return 0 }
-        return max(0, min(1, usedPercent / 100))
+    private var remainingFraction: Double {
+        guard let remainingPercent else { return 0 }
+        return max(0, min(1, remainingPercent / 100))
     }
 
     private var remainingText: String {
@@ -1113,6 +1120,7 @@ private struct XlyraSiteRowView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(theme.card)
@@ -1197,6 +1205,7 @@ private struct XlyraAPIKeyRowView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 8).fill(theme.card))
     }
 }

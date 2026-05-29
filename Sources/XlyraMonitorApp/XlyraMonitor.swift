@@ -453,6 +453,14 @@ struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
         Self.remainingPercent(used: weeklyUsedPercent, remaining: weeklyRemainingPercent)
     }
 
+    var primaryCapacityRemainingPercent: Double? {
+        modelQuotas.first?.remainingDisplayPercent ?? fiveHourRemainingDisplayPercent
+    }
+
+    var secondaryCapacityRemainingPercent: Double? {
+        modelQuotas.dropFirst().first?.remainingDisplayPercent ?? weeklyRemainingDisplayPercent
+    }
+
     var quotaDisplays: [XlyraOAuthQuotaDisplay] {
         if modelQuotas.isEmpty == false {
             return modelQuotas.prefix(2).map { quota in
@@ -488,11 +496,11 @@ struct XlyraOAuthRow: Decodable, Equatable, Identifiable {
         return "可用"
     }
 
-    func quotaProgressColorName(usedPercent: Double?) -> String {
+    func quotaProgressColorName(remainingPercent: Double?) -> String {
         if available == false || isConnectionUsable == false || isCoolingDown {
             return "gray"
         }
-        return XlyraOAuthCapacity.riskColorName(for: usedPercent)
+        return XlyraOAuthCapacity.riskColorName(forRemainingPercent: remainingPercent)
     }
 
     private var isConnectionUsable: Bool {
@@ -592,48 +600,49 @@ struct XlyraOAuthSummary: Decodable, Equatable {
     }
 
     var fiveHourCapacity: XlyraOAuthCapacity {
-        capacity { $0.fiveHourUsedDisplayPercent }
+        codexCapacity { $0.fiveHourRemainingDisplayPercent }
     }
 
     var weeklyCapacity: XlyraOAuthCapacity {
-        capacity { $0.weeklyUsedDisplayPercent }
+        codexCapacity { $0.weeklyRemainingDisplayPercent }
     }
 
-    private func capacity(_ usedPercent: (XlyraOAuthRow) -> Double?) -> XlyraOAuthCapacity {
-        let usedPercents = rows.compactMap { account -> Double? in
-            guard account.isHealthy, let percent = usedPercent(account) else {
+    var primaryCapacityLabel: String {
+        "5h"
+    }
+
+    var secondaryCapacityLabel: String {
+        "7d"
+    }
+
+    private func codexCapacity(_ remainingPercent: (XlyraOAuthRow) -> Double?) -> XlyraOAuthCapacity {
+        let remainingPercents = rows.compactMap { account -> Double? in
+            guard account.isHealthy, account.provider.lowercased() == "codex", let percent = remainingPercent(account) else {
                 return nil
             }
             return max(0, min(100, percent))
         }
         return XlyraOAuthCapacity(
-            averageUsedPercent: usedPercents.isEmpty ? nil : usedPercents.reduce(0, +) / Double(usedPercents.count)
+            averageRemainingPercent: remainingPercents.isEmpty ? nil : remainingPercents.reduce(0, +) / Double(remainingPercents.count)
         )
     }
 }
 
 struct XlyraOAuthCapacity: Equatable {
-    let averageUsedPercent: Double?
+    let averageRemainingPercent: Double?
 
-    var usedFraction: Double {
-        guard let averageUsedPercent else {
+    var remainingFraction: Double {
+        guard let averageRemainingPercent else {
             return 0
         }
-        return max(0, min(1, averageUsedPercent / 100))
-    }
-
-    var remainingFraction: Double? {
-        guard let averageUsedPercent else {
-            return nil
-        }
-        return max(0, min(1, 1 - averageUsedPercent / 100))
+        return max(0, min(1, averageRemainingPercent / 100))
     }
 
     var shortText: String {
-        guard let averageUsedPercent else {
+        guard let averageRemainingPercent else {
             return "--"
         }
-        let rounded = (averageUsedPercent * 10).rounded() / 10
+        let rounded = (averageRemainingPercent * 10).rounded() / 10
         if rounded == rounded.rounded() {
             return "\(Int(rounded))%"
         }
@@ -641,17 +650,17 @@ struct XlyraOAuthCapacity: Equatable {
     }
 
     var riskColorName: String {
-        Self.riskColorName(for: averageUsedPercent)
+        Self.riskColorName(forRemainingPercent: averageRemainingPercent)
     }
 
-    static func riskColorName(for usedPercent: Double?) -> String {
-        guard let usedPercent else { return "gray" }
-        switch usedPercent {
-        case 90...:
+    static func riskColorName(forRemainingPercent remainingPercent: Double?) -> String {
+        guard let remainingPercent else { return "gray" }
+        switch remainingPercent {
+        case ..<10:
             return "red"
-        case 80..<90:
+        case 10..<20:
             return "orange"
-        case 60..<80:
+        case 20..<40:
             return "yellow"
         default:
             return "green"
@@ -810,17 +819,6 @@ struct XlyraSnapshot: Decodable, Equatable {
         return .healthy
     }
 
-    var title: String {
-        switch healthLevel {
-        case .healthy:
-            return "xLyra 正常"
-        case .warning:
-            return "xLyra 监控"
-        case .critical:
-            return "xLyra 异常"
-        }
-    }
-
     var abnormalItemCount: Int {
         riskItems.count
     }
@@ -925,19 +923,13 @@ final class XlyraMonitorState: ObservableObject {
 final class XlyraMonitorPreferences {
     private let configURL: URL
     private let fileManager: FileManager
-    private let legacyUserDefaults: UserDefaults?
-    private static let legacyConsoleURLKey = "xlyra.monitor.consoleURL"
-    private static let legacyAdminAccessTokenKey = "xlyra.monitor.adminAccessToken"
 
     init(
         configURL: URL = XlyraMonitorPreferences.defaultConfigURL(),
-        fileManager: FileManager = .default,
-        legacyUserDefaults: UserDefaults? = .standard
+        fileManager: FileManager = .default
     ) {
         self.configURL = configURL
         self.fileManager = fileManager
-        self.legacyUserDefaults = legacyUserDefaults
-        migrateLegacyUserDefaultsIfNeeded()
     }
 
     var consoleURL: URL? {
@@ -1002,31 +994,6 @@ final class XlyraMonitorPreferences {
         } catch {
             assertionFailure("Failed to save xLyra monitor config: \(error)")
         }
-    }
-
-    private func migrateLegacyUserDefaultsIfNeeded() {
-        guard let legacyUserDefaults else { return }
-        var config = configuration()
-        var didMigrate = false
-
-        if config.consoleURL == nil,
-           let legacyConsoleURL = legacyUserDefaults.string(forKey: Self.legacyConsoleURLKey)?.trimmingCharacters(in: .whitespacesAndNewlines),
-           legacyConsoleURL.isEmpty == false {
-            config.consoleURL = legacyConsoleURL
-            didMigrate = true
-        }
-
-        if config.adminAccessToken == nil,
-           let legacyToken = legacyUserDefaults.string(forKey: Self.legacyAdminAccessTokenKey)?.trimmingCharacters(in: .whitespacesAndNewlines),
-           legacyToken.isEmpty == false {
-            config.adminAccessToken = legacyToken
-            didMigrate = true
-        }
-
-        guard didMigrate else { return }
-        save(config)
-        legacyUserDefaults.removeObject(forKey: Self.legacyConsoleURLKey)
-        legacyUserDefaults.removeObject(forKey: Self.legacyAdminAccessTokenKey)
     }
 
     private static func defaultConfigURL() -> URL {
