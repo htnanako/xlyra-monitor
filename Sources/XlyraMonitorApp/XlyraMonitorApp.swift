@@ -5,7 +5,7 @@ public enum XlyraMonitorAppMetadata {
     static let menuBarLabel = "xLyra 监控"
     static let systemImageName = "gauge.with.dots.needle.67percent"
     static let appIconName = "XlyraMonitorIcon"
-    static let fallbackVersion = "0.1.8"
+    static let fallbackVersion = "0.1.9"
 
     static var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? fallbackVersion

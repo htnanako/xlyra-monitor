@@ -116,6 +116,20 @@ struct MenuToolButtonStyle: ButtonStyle {
     }
 }
 
+struct MenuPrimaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12, weight: .bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .frame(height: 28)
+            .background(
+                RoundedRectangle(cornerRadius: 7)
+                    .fill(configuration.isPressed ? Color.blue.opacity(0.78) : Color.blue)
+            )
+    }
+}
+
 struct SettingsTextFieldRow<Content: View>: View {
     let title: String
     @ViewBuilder let content: () -> Content
@@ -334,7 +348,7 @@ struct XlyraStatusMenuView: View {
         let theme = MenuTheme(mode: preferences.themeMode, systemColorScheme: colorScheme)
 
         VStack(alignment: .leading, spacing: 12) {
-            XlyraSummaryView(state: state, theme: theme)
+            XlyraSummaryView(state: state, updateCoordinator: updateCoordinator, theme: theme)
 
             if let snapshot = state.snapshot {
                 let selectedTab = state.selectedDetailTab
@@ -352,7 +366,6 @@ struct XlyraStatusMenuView: View {
                     snapshot: snapshot,
                     state: state,
                     monitor: monitor,
-                    updateCoordinator: updateCoordinator,
                     theme: theme
                 )
 
@@ -533,6 +546,7 @@ private struct XlyraMenuScrollView<Content: View>: View {
 
 private struct XlyraSummaryView: View {
     @ObservedObject var state: XlyraMonitorState
+    @ObservedObject var updateCoordinator: XlyraAppUpdateCoordinator
     let theme: MenuTheme
 
     var body: some View {
@@ -545,6 +559,19 @@ private struct XlyraSummaryView: View {
                 Text(state.title)
                     .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(theme.text)
+                    .lineLimit(1)
+
+                if let update = updateCoordinator.updateStatus.availableUpdate {
+                    Button {
+                        updateCoordinator.installAvailableUpdate()
+                    } label: {
+                        Label(updateButtonTitle(for: update), systemImage: "arrow.down.circle.fill")
+                    }
+                    .help("更新到 \(update.version)")
+                    .disabled(updateCoordinator.updateStatus.isBusy)
+                    .buttonStyle(MenuPrimaryButtonStyle())
+                    .controlSize(.small)
+                }
 
                 Spacer(minLength: 8)
 
@@ -566,6 +593,17 @@ private struct XlyraSummaryView: View {
                 XlyraStatCard(value: costText, label: "今日成本", theme: theme)
                 XlyraStatCard(value: requestText, label: "今日请求", theme: theme)
             }
+        }
+    }
+
+    private func updateButtonTitle(for update: XlyraAppUpdate) -> String {
+        switch updateCoordinator.updateStatus {
+        case .downloading:
+            return "下载中"
+        case .installing:
+            return "安装中"
+        default:
+            return "更新"
         }
     }
 
@@ -651,24 +689,11 @@ private struct XlyraDetailHeader: View {
     let snapshot: XlyraSnapshot
     @ObservedObject var state: XlyraMonitorState
     let monitor: XlyraMonitor
-    @ObservedObject var updateCoordinator: XlyraAppUpdateCoordinator
     let theme: MenuTheme
 
     var body: some View {
         HStack(spacing: 8) {
             XlyraSectionHeader(title: title, detail: detail, theme: theme)
-
-            if let update = updateCoordinator.updateStatus.availableUpdate {
-                Button {
-                    updateCoordinator.installAvailableUpdate()
-                } label: {
-                    Label(updateButtonTitle(for: update), systemImage: "arrow.down.circle.fill")
-                }
-                .help("更新到 \(update.version)")
-                .disabled(updateCoordinator.updateStatus.isBusy)
-                .buttonStyle(MenuToolButtonStyle(theme: theme))
-                .controlSize(.small)
-            }
 
             if selectedTab == .oauth {
                 Button {
@@ -682,17 +707,6 @@ private struct XlyraDetailHeader: View {
                 .buttonStyle(MenuToolButtonStyle(theme: theme))
                 .controlSize(.small)
             }
-        }
-    }
-
-    private func updateButtonTitle(for update: XlyraAppUpdate) -> String {
-        switch updateCoordinator.updateStatus {
-        case .downloading:
-            return "下载中"
-        case .installing:
-            return "安装中"
-        default:
-            return "更新"
         }
     }
 
