@@ -21,10 +21,9 @@ struct MenuBarPalette {
     let text: NSColor
     let track: NSColor
 
-    init(mode: AppThemeMode, systemColorScheme: ColorScheme) {
-        let isDark = mode.resolvesToDark(systemColorScheme: systemColorScheme)
-        text = isDark ? .white : .labelColor
-        track = isDark ? NSColor.white.withAlphaComponent(0.18) : NSColor.black.withAlphaComponent(0.16)
+    init(isDarkBackground: Bool) {
+        text = isDarkBackground ? .white : NSColor(calibratedWhite: 0.02, alpha: 1)
+        track = isDarkBackground ? NSColor.white.withAlphaComponent(0.18) : NSColor.black.withAlphaComponent(0.16)
     }
 }
 
@@ -44,13 +43,22 @@ struct MenuTheme {
     let red: Color
     let disabledProgress: Color
 
-    init(mode: AppThemeMode, systemColorScheme: ColorScheme) {
-        isDark = mode.resolvesToDark(systemColorScheme: systemColorScheme)
-        background = .clear
-        card = isDark ? Color.white.opacity(0.08) : Color.white.opacity(0.48)
-        elevatedCard = isDark ? Color.white.opacity(0.12) : Color.white.opacity(0.62)
-        control = isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.07)
-        separator = isDark ? Color.white.opacity(0.13) : Color.black.opacity(0.10)
+    init(
+        mode: AppThemeMode,
+        systemColorScheme: ColorScheme,
+        systemInterfaceStyle: String? = UserDefaults.standard.string(forKey: "AppleInterfaceStyle"),
+        effectiveAppearance: NSAppearance? = NSApp.effectiveAppearance
+    ) {
+        isDark = mode.resolvesToDark(
+            systemColorScheme: systemColorScheme,
+            systemInterfaceStyle: systemInterfaceStyle,
+            effectiveAppearance: effectiveAppearance
+        )
+        background = isDark ? Color(red: 0.06, green: 0.07, blue: 0.09) : Color(red: 0.95, green: 0.96, blue: 0.97)
+        card = isDark ? Color(red: 0.12, green: 0.13, blue: 0.16) : Color.white.opacity(0.72)
+        elevatedCard = isDark ? Color(red: 0.15, green: 0.16, blue: 0.19) : Color.white.opacity(0.88)
+        control = isDark ? Color(red: 0.17, green: 0.18, blue: 0.21) : Color.black.opacity(0.07)
+        separator = isDark ? Color.white.opacity(0.10) : Color.black.opacity(0.10)
         text = isDark ? .white : Color(red: 0.10, green: 0.11, blue: 0.13)
         secondary = isDark ? Color.white.opacity(0.62) : Color.black.opacity(0.58)
         tertiary = isDark ? Color.white.opacity(0.42) : Color.black.opacity(0.42)
@@ -148,13 +156,93 @@ struct SettingsTextFieldRow<Content: View>: View {
 
 struct XlyraMenuBarLabel: View {
     @ObservedObject var state: XlyraMonitorState
-    @ObservedObject var preferences: AppPreferences
-    @Environment(\.colorScheme) private var colorScheme
+    @State private var isDarkMenuBarBackground = false
 
     var body: some View {
-        let palette = MenuBarPalette(mode: preferences.themeMode, systemColorScheme: colorScheme)
+        let palette = MenuBarPalette(isDarkBackground: isDarkMenuBarBackground)
         Image(nsImage: XlyraMenuBarImageRenderer.image(state: state, palette: palette))
             .accessibilityLabel(state.title)
+            .background(
+                XlyraMenuBarBackgroundReader { isDarkBackground in
+                    guard isDarkMenuBarBackground != isDarkBackground else { return }
+                    isDarkMenuBarBackground = isDarkBackground
+                }
+            )
+    }
+}
+
+private struct XlyraMenuBarBackgroundReader: NSViewRepresentable {
+    let onChange: (Bool) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            updateBackground(for: view)
+        }
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        DispatchQueue.main.async {
+            updateBackground(for: view)
+        }
+    }
+
+    private func updateBackground(for view: NSView) {
+        guard let frame = view.window?.frame,
+              let isDarkBackground = XlyraMenuBarBackgroundSampler.isDarkBackground(near: frame) else {
+            return
+        }
+        onChange(isDarkBackground)
+    }
+}
+
+enum XlyraMenuBarBackgroundSampler {
+    static func isDarkBackground(near frame: NSRect) -> Bool? {
+        let samplePoints = [
+            NSPoint(x: frame.midX, y: frame.maxY - 2),
+            NSPoint(x: frame.midX, y: frame.minY + 2),
+            NSPoint(x: frame.minX + 4, y: frame.midY),
+            NSPoint(x: frame.maxX - 4, y: frame.midY)
+        ]
+        let samples = samplePoints.compactMap(sampleLuminance)
+        guard samples.isEmpty == false else { return nil }
+        let averageLuminance = samples.reduce(0, +) / CGFloat(samples.count)
+        return averageLuminance < 0.50
+    }
+
+    private static func sampleLuminance(at point: NSPoint) -> CGFloat? {
+        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(point) }),
+              let displayID = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID else {
+            return nil
+        }
+        let scale = screen.backingScaleFactor
+        let pixelX = (point.x - screen.frame.minX) * scale
+        let pixelY = (screen.frame.maxY - point.y) * scale
+        let rect = CGRect(x: pixelX, y: pixelY, width: max(1, scale), height: max(1, scale))
+        guard let image = CGDisplayCreateImage(displayID, rect: rect),
+              let provider = image.dataProvider,
+              let data = provider.data,
+              let bytes = CFDataGetBytePtr(data),
+              CFDataGetLength(data) >= 4 else {
+            return nil
+        }
+
+        let alphaInfo = image.alphaInfo
+        let red: CGFloat
+        let green: CGFloat
+        let blue: CGFloat
+        switch alphaInfo {
+        case .premultipliedFirst, .first, .noneSkipFirst:
+            red = CGFloat(bytes[1]) / 255
+            green = CGFloat(bytes[2]) / 255
+            blue = CGFloat(bytes[3]) / 255
+        default:
+            red = CGFloat(bytes[0]) / 255
+            green = CGFloat(bytes[1]) / 255
+            blue = CGFloat(bytes[2]) / 255
+        }
+        return 0.2126 * red + 0.7152 * green + 0.0722 * blue
     }
 }
 
@@ -441,8 +529,9 @@ struct XlyraStatusMenuView: View {
         }
         .padding(12)
         .frame(width: XlyraMenuLayout.width)
-        .background(.regularMaterial)
-        .preferredColorScheme(preferences.themeMode.preferredColorScheme)
+        .background(theme.background)
+        .environment(\.colorScheme, theme.isDark ? .dark : .light)
+        .preferredColorScheme(theme.isDark ? .dark : .light)
     }
 
     private func detailFrameHeight(snapshot: XlyraSnapshot, tab: XlyraDetailTab) -> CGFloat {

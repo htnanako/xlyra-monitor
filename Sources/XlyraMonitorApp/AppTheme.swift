@@ -13,9 +13,50 @@ extension AppThemeMode {
         }
     }
 
-    func resolvesToDark(systemColorScheme: ColorScheme) -> Bool {
+    func resolvedColorScheme(
+        systemColorScheme: ColorScheme,
+        systemInterfaceStyle: String? = UserDefaults.standard.string(forKey: "AppleInterfaceStyle"),
+        effectiveAppearance: NSAppearance? = NSApp.effectiveAppearance
+    ) -> ColorScheme {
+        resolvesToDark(
+            systemColorScheme: systemColorScheme,
+            systemInterfaceStyle: systemInterfaceStyle,
+            effectiveAppearance: effectiveAppearance
+        ) ? .dark : .light
+    }
+
+    func resolvedNSAppearance(
+        systemColorScheme: ColorScheme,
+        systemInterfaceStyle: String? = UserDefaults.standard.string(forKey: "AppleInterfaceStyle"),
+        effectiveAppearance: NSAppearance? = NSApp.effectiveAppearance
+    ) -> NSAppearance? {
+        switch resolvedColorScheme(
+            systemColorScheme: systemColorScheme,
+            systemInterfaceStyle: systemInterfaceStyle,
+            effectiveAppearance: effectiveAppearance
+        ) {
+        case .dark:
+            return NSAppearance(named: .darkAqua)
+        case .light:
+            return NSAppearance(named: .aqua)
+        @unknown default:
+            return nil
+        }
+    }
+
+    func resolvesToDark(
+        systemColorScheme: ColorScheme,
+        systemInterfaceStyle: String? = UserDefaults.standard.string(forKey: "AppleInterfaceStyle"),
+        effectiveAppearance: NSAppearance? = NSApp.effectiveAppearance
+    ) -> Bool {
         switch self {
         case .automatic:
+            if let systemInterfaceStyle {
+                return systemInterfaceStyle.caseInsensitiveCompare("Dark") == .orderedSame
+            }
+            if let isDarkAppearance = effectiveAppearance?.isDarkAppearance {
+                return isDarkAppearance
+            }
             return systemColorScheme == .dark
         case .light:
             return false
@@ -36,19 +77,44 @@ extension AppThemeMode {
     }
 }
 
+private extension NSAppearance {
+    var isDarkAppearance: Bool? {
+        guard let match = bestMatch(from: [.darkAqua, .aqua]) else {
+            return nil
+        }
+        return match == .darkAqua
+    }
+}
+
 struct ThemedSceneContent<Content: View>: View {
     @ObservedObject var preferences: AppPreferences
     @ViewBuilder let content: () -> Content
+    @Environment(\.colorScheme) private var systemColorScheme
 
     var body: some View {
+        let resolvedColorScheme = preferences.themeMode.resolvedColorScheme(
+            systemColorScheme: systemColorScheme
+        )
+
         content()
-            .preferredColorScheme(preferences.themeMode.preferredColorScheme)
-            .background(WindowAppearanceUpdater(themeMode: preferences.themeMode))
+            .environment(\.colorScheme, resolvedColorScheme)
+            .preferredColorScheme(resolvedColorScheme)
+            .background(
+                Color(nsColor: .windowBackgroundColor)
+                    .ignoresSafeArea()
+            )
+            .background(
+                WindowAppearanceUpdater(
+                    themeMode: preferences.themeMode,
+                    systemColorScheme: systemColorScheme
+                )
+            )
     }
 }
 
 private struct WindowAppearanceUpdater: NSViewRepresentable {
     let themeMode: AppThemeMode
+    let systemColorScheme: ColorScheme
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
@@ -64,6 +130,6 @@ private struct WindowAppearanceUpdater: NSViewRepresentable {
     }
 
     private func updateAppearance(for view: NSView) {
-        view.window?.appearance = themeMode.nsAppearance
+        view.window?.appearance = themeMode.resolvedNSAppearance(systemColorScheme: systemColorScheme)
     }
 }

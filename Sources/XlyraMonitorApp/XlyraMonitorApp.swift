@@ -5,7 +5,7 @@ public enum XlyraMonitorAppMetadata {
     static let menuBarLabel = "xLyra 监控"
     static let systemImageName = "gauge.with.dots.needle.67percent"
     static let appIconName = "XlyraMonitorIcon"
-    static let fallbackVersion = "0.1.9"
+    static let fallbackVersion = "0.1.10"
 
     static var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? fallbackVersion
@@ -18,17 +18,17 @@ struct XlyraMonitorApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            XlyraStatusMenuView(
-                state: container.state,
-                preferences: container.appPreferences,
-                monitorPreferences: container.monitorPreferences,
-                monitor: container.monitor,
-                updateCoordinator: container.updateCoordinator
-            )
-        } label: {
             ThemedSceneContent(preferences: container.appPreferences) {
-                XlyraMenuBarLabel(state: container.state, preferences: container.appPreferences)
+                XlyraStatusMenuView(
+                    state: container.state,
+                    preferences: container.appPreferences,
+                    monitorPreferences: container.monitorPreferences,
+                    monitor: container.monitor,
+                    updateCoordinator: container.updateCoordinator
+                )
             }
+        } label: {
+            XlyraMenuBarLabel(state: container.state)
         }
         .menuBarExtraStyle(.window)
 
