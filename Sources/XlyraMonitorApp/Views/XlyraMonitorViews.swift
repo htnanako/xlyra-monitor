@@ -1468,7 +1468,8 @@ struct XlyraSettingsWindowView: View {
             }
         }
         .padding(20)
-        .frame(width: 460)
+        .frame(width: 460, alignment: .topLeading)
+        .frame(maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             consoleURLText = monitorPreferences.consoleURL?.absoluteString ?? ""
             adminAccessTokenText = ""
@@ -1721,8 +1722,8 @@ struct XlyraOAuthImportWindowView: View {
             }
         }
         .padding(20)
-        .frame(width: 520)
-        .frame(minHeight: 300)
+        .frame(width: 520, alignment: .topLeading)
+        .frame(minHeight: 300, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private func selectImportFile() {
