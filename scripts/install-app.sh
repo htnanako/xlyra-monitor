@@ -7,7 +7,7 @@ BUILD_DIR="$ROOT_DIR/.build/release"
 APP_DIR="$ROOT_DIR/.build/app/$APP_NAME"
 INSTALL_DIR="${1:-$HOME/Applications}"
 ICON_NAME="XlyraMonitorIcon"
-APP_VERSION="${APP_VERSION:-0.1.11}"
+APP_VERSION="${APP_VERSION:-0.1.12}"
 
 cd "$ROOT_DIR"
 python3 scripts/generate-app-icon.py

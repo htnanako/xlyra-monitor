@@ -21,9 +21,9 @@ struct MenuBarPalette {
     let text: NSColor
     let track: NSColor
 
-    init(isDarkBackground: Bool) {
-        text = isDarkBackground ? .white : NSColor(calibratedWhite: 0.02, alpha: 1)
-        track = isDarkBackground ? NSColor.white.withAlphaComponent(0.18) : NSColor.black.withAlphaComponent(0.16)
+    init() {
+        text = .black
+        track = NSColor.black.withAlphaComponent(0.18)
     }
 }
 
@@ -102,12 +102,6 @@ private enum XlyraRiskPalette {
     }
 }
 
-enum MenuBarStatusColorRenderer {
-    static func color(for colorName: String) -> NSColor {
-        XlyraRiskPalette.nsColor(forRiskName: colorName)
-    }
-}
-
 struct MenuToolButtonStyle: ButtonStyle {
     let theme: MenuTheme
 
@@ -156,93 +150,12 @@ struct SettingsTextFieldRow<Content: View>: View {
 
 struct XlyraMenuBarLabel: View {
     @ObservedObject var state: XlyraMonitorState
-    @State private var isDarkMenuBarBackground = false
 
     var body: some View {
-        let palette = MenuBarPalette(isDarkBackground: isDarkMenuBarBackground)
+        let palette = MenuBarPalette()
         Image(nsImage: XlyraMenuBarImageRenderer.image(state: state, palette: palette))
+            .renderingMode(.template)
             .accessibilityLabel(state.title)
-            .background(
-                XlyraMenuBarBackgroundReader { isDarkBackground in
-                    guard isDarkMenuBarBackground != isDarkBackground else { return }
-                    isDarkMenuBarBackground = isDarkBackground
-                }
-            )
-    }
-}
-
-private struct XlyraMenuBarBackgroundReader: NSViewRepresentable {
-    let onChange: (Bool) -> Void
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            updateBackground(for: view)
-        }
-        return view
-    }
-
-    func updateNSView(_ view: NSView, context: Context) {
-        DispatchQueue.main.async {
-            updateBackground(for: view)
-        }
-    }
-
-    private func updateBackground(for view: NSView) {
-        guard let frame = view.window?.frame,
-              let isDarkBackground = XlyraMenuBarBackgroundSampler.isDarkBackground(near: frame) else {
-            return
-        }
-        onChange(isDarkBackground)
-    }
-}
-
-enum XlyraMenuBarBackgroundSampler {
-    static func isDarkBackground(near frame: NSRect) -> Bool? {
-        let samplePoints = [
-            NSPoint(x: frame.midX, y: frame.maxY - 2),
-            NSPoint(x: frame.midX, y: frame.minY + 2),
-            NSPoint(x: frame.minX + 4, y: frame.midY),
-            NSPoint(x: frame.maxX - 4, y: frame.midY)
-        ]
-        let samples = samplePoints.compactMap(sampleLuminance)
-        guard samples.isEmpty == false else { return nil }
-        let averageLuminance = samples.reduce(0, +) / CGFloat(samples.count)
-        return averageLuminance < 0.50
-    }
-
-    private static func sampleLuminance(at point: NSPoint) -> CGFloat? {
-        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(point) }),
-              let displayID = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID else {
-            return nil
-        }
-        let scale = screen.backingScaleFactor
-        let pixelX = (point.x - screen.frame.minX) * scale
-        let pixelY = (screen.frame.maxY - point.y) * scale
-        let rect = CGRect(x: pixelX, y: pixelY, width: max(1, scale), height: max(1, scale))
-        guard let image = CGDisplayCreateImage(displayID, rect: rect),
-              let provider = image.dataProvider,
-              let data = provider.data,
-              let bytes = CFDataGetBytePtr(data),
-              CFDataGetLength(data) >= 4 else {
-            return nil
-        }
-
-        let alphaInfo = image.alphaInfo
-        let red: CGFloat
-        let green: CGFloat
-        let blue: CGFloat
-        switch alphaInfo {
-        case .premultipliedFirst, .first, .noneSkipFirst:
-            red = CGFloat(bytes[1]) / 255
-            green = CGFloat(bytes[2]) / 255
-            blue = CGFloat(bytes[3]) / 255
-        default:
-            red = CGFloat(bytes[0]) / 255
-            green = CGFloat(bytes[1]) / 255
-            blue = CGFloat(bytes[2]) / 255
-        }
-        return 0.2126 * red + 0.7152 * green + 0.0722 * blue
     }
 }
 
@@ -250,7 +163,7 @@ enum XlyraMenuBarImageRenderer {
     @MainActor
     static func image(state: XlyraMonitorState, palette: MenuBarPalette) -> NSImage {
         guard let snapshot = state.snapshot else {
-            return fallbackImage(text: "xLyra", colorName: state.statusColorName, palette: palette)
+            return fallbackImage(text: "xLyra", palette: palette)
         }
 
         let fiveHourCapacity = snapshot.oauth.fiveHourCapacity
@@ -271,7 +184,6 @@ enum XlyraMenuBarImageRenderer {
         defer { image.unlockFocus() }
 
         drawStatusMark(
-            colorName: state.statusColorName,
             centerText: availableAccountCountText(snapshot.oauth.liveHealthy),
             in: markRect,
             palette: palette
@@ -280,7 +192,6 @@ enum XlyraMenuBarImageRenderer {
             label: snapshot.oauth.primaryCapacityLabel,
             value: fiveHourCapacity.shortText,
             progress: fiveHourCapacity.remainingFraction,
-            tint: MenuBarStatusColorRenderer.color(for: fiveHourCapacity.riskColorName),
             palette: palette,
             labelX: labelX,
             barX: barX,
@@ -294,7 +205,6 @@ enum XlyraMenuBarImageRenderer {
             label: snapshot.oauth.secondaryCapacityLabel,
             value: weeklyCapacity.shortText,
             progress: weeklyCapacity.remainingFraction,
-            tint: MenuBarStatusColorRenderer.color(for: weeklyCapacity.riskColorName),
             palette: palette,
             labelX: labelX,
             barX: barX,
@@ -304,11 +214,12 @@ enum XlyraMenuBarImageRenderer {
             valueFont: valueFont,
             y: 2
         )
+        image.isTemplate = true
         return image
     }
 
     @MainActor
-    private static func fallbackImage(text: String, colorName: String, palette: MenuBarPalette) -> NSImage {
+    private static func fallbackImage(text: String, palette: MenuBarPalette) -> NSImage {
         let font = NSFont.monospacedSystemFont(ofSize: 11, weight: .semibold)
         let textWidth = ceil(NSString(string: text).size(withAttributes: [.font: font]).width)
         let size = NSSize(width: 18 + textWidth, height: 18)
@@ -316,7 +227,7 @@ enum XlyraMenuBarImageRenderer {
         image.lockFocus()
         defer { image.unlockFocus() }
 
-        MenuBarStatusColorRenderer.color(for: colorName).setFill()
+        palette.text.setFill()
         NSBezierPath(ovalIn: CGRect(x: 1, y: 4.5, width: 9, height: 9)).fill()
         drawText(
             text,
@@ -325,6 +236,7 @@ enum XlyraMenuBarImageRenderer {
             color: palette.text,
             alignment: .left
         )
+        image.isTemplate = true
         return image
     }
 
@@ -336,7 +248,6 @@ enum XlyraMenuBarImageRenderer {
         label: String,
         value: String,
         progress: Double,
-        tint: NSColor,
         palette: MenuBarPalette,
         labelX: CGFloat,
         barX: CGFloat,
@@ -367,7 +278,7 @@ enum XlyraMenuBarImageRenderer {
                 xRadius: 2,
                 yRadius: 2
             )
-            tint.setFill()
+            palette.text.setFill()
             filledPath.fill()
         }
 
@@ -380,9 +291,9 @@ enum XlyraMenuBarImageRenderer {
         )
     }
 
-    private static func drawStatusMark(colorName: String, centerText: String, in rect: CGRect, palette: MenuBarPalette) {
+    private static func drawStatusMark(centerText: String, in rect: CGRect, palette: MenuBarPalette) {
         let ring = NSBezierPath(ovalIn: rect.insetBy(dx: 1.1, dy: 1.1))
-        MenuBarStatusColorRenderer.color(for: colorName).setStroke()
+        palette.text.setStroke()
         ring.lineWidth = 1.8
         ring.stroke()
 

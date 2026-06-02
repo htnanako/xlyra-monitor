@@ -7,9 +7,7 @@ let package = Package(
     products: [
         .executable(name: "XlyraMonitorApp", targets: ["XlyraMonitorApp"])
     ],
-    dependencies: [
-        .package(url: "https://github.com/swiftlang/swift-testing.git", from: "0.99.0")
-    ],
+    dependencies: [],
     targets: [
         .executableTarget(
             name: "XlyraMonitorApp"
@@ -17,8 +15,7 @@ let package = Package(
         .testTarget(
             name: "XlyraMonitorAppTests",
             dependencies: [
-                "XlyraMonitorApp",
-                .product(name: "Testing", package: "swift-testing")
+                "XlyraMonitorApp"
             ]
         )
     ]

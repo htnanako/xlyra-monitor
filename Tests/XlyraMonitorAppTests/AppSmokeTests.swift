@@ -1,27 +1,22 @@
 import AppKit
 import Foundation
 import SwiftUI
-import Testing
+import XCTest
 @testable import XlyraMonitorApp
 
-@Suite("AppSmokeTests")
-struct AppSmokeTests {
-    @Test
+final class AppSmokeTests: XCTestCase {
     func testAppTargetExposesMenuBarMetadata() {
-        #expect(XlyraMonitorAppMetadata.menuBarTitle == "xLyra")
-        #expect(XlyraMonitorAppMetadata.menuBarLabel == "xLyra 监控")
-        #expect(XlyraMonitorAppMetadata.fallbackVersion == "0.1.11")
+        XCTAssert(XlyraMonitorAppMetadata.menuBarTitle == "xLyra")
+        XCTAssert(XlyraMonitorAppMetadata.menuBarLabel == "xLyra 监控")
+        XCTAssert(XlyraMonitorAppMetadata.fallbackVersion == "0.1.12")
     }
 
-    @Test
     func testUpdateVersionComparisonHandlesTags() {
-        #expect(XlyraVersionComparator.isVersion("v0.1.11", newerThan: "0.1.0"))
-        #expect(XlyraVersionComparator.isVersion("0.10.0", newerThan: "0.9.9"))
-        #expect(XlyraVersionComparator.isVersion("0.1.0", newerThan: "0.1.0") == false)
-        #expect(XlyraVersionComparator.isVersion("0.0.9", newerThan: "0.1.0") == false)
+        XCTAssert(XlyraVersionComparator.isVersion("v0.1.11", newerThan: "0.1.0"))
+        XCTAssert(XlyraVersionComparator.isVersion("0.10.0", newerThan: "0.9.9"))
+        XCTAssert(XlyraVersionComparator.isVersion("0.1.0", newerThan: "0.1.0") == false)
+        XCTAssert(XlyraVersionComparator.isVersion("0.0.9", newerThan: "0.1.0") == false)
     }
-
-    @Test
     func testUpdateInstallerAssetPrefersXlyraDMG() {
         let assets = [
             XlyraGitHubReleaseAsset(
@@ -38,10 +33,8 @@ struct AppSmokeTests {
             )
         ]
 
-        #expect(XlyraAppUpdateService.installerAsset(from: assets)?.name == "xLyra-Monitor-0.2.0.dmg")
+        XCTAssert(XlyraAppUpdateService.installerAsset(from: assets)?.name == "xLyra-Monitor-0.2.0.dmg")
     }
-
-    @Test
     func testGitHubReleaseDecodesUpdatePayload() throws {
         let data = """
         {
@@ -61,17 +54,14 @@ struct AppSmokeTests {
 
         let release = try JSONDecoder().decode(XlyraGitHubRelease.self, from: data)
 
-        #expect(release.tagName == "v0.2.0")
-        #expect(release.assets.first?.name == "xLyra-Monitor-0.2.0.dmg")
+        XCTAssert(release.tagName == "v0.2.0")
+        XCTAssert(release.assets.first?.name == "xLyra-Monitor-0.2.0.dmg")
     }
 
     @MainActor
-    @Test
     func testAutomaticUpdateChecksRunEveryFiveMinutes() {
-        #expect(XlyraAppUpdateCoordinator.automaticCheckInterval == 300)
+        XCTAssert(XlyraAppUpdateCoordinator.automaticCheckInterval == 300)
     }
-
-    @Test
     func testXlyraBusinessSnapshotDecodes() throws {
         let data = """
         {
@@ -192,23 +182,21 @@ struct AppSmokeTests {
 
         let snapshot = try JSONDecoder().decode(XlyraSnapshot.self, from: data)
 
-        #expect(snapshot.sites.total == 2)
-        #expect(snapshot.sites.rows.first?.name == "Codex_cord_jxxc")
-        #expect(snapshot.oauth.rows.first?.fiveHourRemainingPercent == 96)
-        #expect(snapshot.oauth.rows.first?.fiveHourResetAt == 1_779_875_344)
-        #expect(snapshot.oauth.rows.first?.weeklyUsedPercent == 27)
-        #expect(snapshot.oauth.rows.first?.weeklyResetAt == 1_780_296_607)
-        #expect(snapshot.oauth.rows.first?.lastRefreshAt == "2026-05-27T05:06:06.765101+00:00")
-        #expect(snapshot.oauth.rows.first?.lastSyncAt == "2026-05-27T06:00:03.745145+00:00")
-        #expect(snapshot.oauth.rows.first?.expiresAt == "2026-06-06T05:06:06.765101+00:00")
-        #expect(snapshot.apiKeys.rows.first?.quotaUnlimited == true)
-        #expect(snapshot.requests.failed24h == 39)
-        #expect(snapshot.usage.tokens24h == 56_435_720)
-        #expect(snapshot.healthLevel == XlyraHealthLevel.warning)
-        #expect(snapshot.riskItems.contains("站点异常 1 个"))
+        XCTAssert(snapshot.sites.total == 2)
+        XCTAssert(snapshot.sites.rows.first?.name == "Codex_cord_jxxc")
+        XCTAssert(snapshot.oauth.rows.first?.fiveHourRemainingPercent == 96)
+        XCTAssert(snapshot.oauth.rows.first?.fiveHourResetAt == 1_779_875_344)
+        XCTAssert(snapshot.oauth.rows.first?.weeklyUsedPercent == 27)
+        XCTAssert(snapshot.oauth.rows.first?.weeklyResetAt == 1_780_296_607)
+        XCTAssert(snapshot.oauth.rows.first?.lastRefreshAt == "2026-05-27T05:06:06.765101+00:00")
+        XCTAssert(snapshot.oauth.rows.first?.lastSyncAt == "2026-05-27T06:00:03.745145+00:00")
+        XCTAssert(snapshot.oauth.rows.first?.expiresAt == "2026-06-06T05:06:06.765101+00:00")
+        XCTAssert(snapshot.apiKeys.rows.first?.quotaUnlimited == true)
+        XCTAssert(snapshot.requests.failed24h == 39)
+        XCTAssert(snapshot.usage.tokens24h == 56_435_720)
+        XCTAssert(snapshot.healthLevel == XlyraHealthLevel.warning)
+        XCTAssert(snapshot.riskItems.contains("站点异常 1 个"))
     }
-
-    @Test
     func testXlyraSiteMissingOptionalValidationAndSyncStatusIsUsable() throws {
         let data = """
         {
@@ -233,14 +221,13 @@ struct AppSmokeTests {
 
         let site = try JSONDecoder().decode(XlyraSiteRow.self, from: data)
 
-        #expect(site.validationOK == nil)
-        #expect(site.syncStatus == nil)
-        #expect(site.isHealthy)
-        #expect(site.stateText == "可用")
+        XCTAssert(site.validationOK == nil)
+        XCTAssert(site.syncStatus == nil)
+        XCTAssert(site.isHealthy)
+        XCTAssert(site.stateText == "可用")
     }
 
     @MainActor
-    @Test
     func testMonitorTitleReflectsConnectionStateInsteadOfBusinessHealth() {
         let state = XlyraMonitorState()
         let snapshot = XlyraSnapshot(
@@ -261,15 +248,13 @@ struct AppSmokeTests {
             cooldowns: XlyraCooldownSummary(active: 0)
         )
 
-        #expect(snapshot.healthLevel == .critical)
+        XCTAssert(snapshot.healthLevel == .critical)
 
         state.applySuccess(snapshot)
 
-        #expect(state.title == "xLyra 已连接")
-        #expect(state.statusColorName == "green")
+        XCTAssert(state.title == "xLyra 已连接")
+        XCTAssert(state.statusColorName == "green")
     }
-
-    @Test
     func testXlyraOAuthQuotaNormalizesFractionalPercentValues() throws {
         let data = """
         {
@@ -291,14 +276,12 @@ struct AppSmokeTests {
 
         let account = try JSONDecoder().decode(XlyraOAuthRow.self, from: data)
 
-        #expect(account.fiveHourUsedDisplayPercent == 4)
-        #expect(account.fiveHourRemainingDisplayPercent == 96)
-        #expect(account.weeklyUsedDisplayPercent == 55)
-        #expect(account.weeklyRemainingDisplayPercent == 45)
-        #expect(account.quotaText == "5h 剩 96% · 7d 剩 45%")
+        XCTAssert(account.fiveHourUsedDisplayPercent == 4)
+        XCTAssert(account.fiveHourRemainingDisplayPercent == 96)
+        XCTAssert(account.weeklyUsedDisplayPercent == 55)
+        XCTAssert(account.weeklyRemainingDisplayPercent == 45)
+        XCTAssert(account.quotaText == "5h 剩 96% · 7d 剩 45%")
     }
-
-    @Test
     func testXlyraOAuthQuotaUsesRemainingPercentWhenOneIsAmbiguous() throws {
         let data = """
         {
@@ -318,21 +301,17 @@ struct AppSmokeTests {
 
         let account = try JSONDecoder().decode(XlyraOAuthRow.self, from: data)
 
-        #expect(account.fiveHourUsedDisplayPercent == 1)
-        #expect(account.fiveHourRemainingDisplayPercent == 99)
+        XCTAssert(account.fiveHourUsedDisplayPercent == 1)
+        XCTAssert(account.fiveHourRemainingDisplayPercent == 99)
     }
-
-    @Test
     func testXlyraMonitorPreferencesStartWithoutBundledConsoleURL() throws {
         let preferences = XlyraMonitorPreferences(
             configURL: Self.temporaryXlyraConfigURL()
         )
 
-        #expect(preferences.consoleURL == nil)
-        #expect(try preferences.adminAccessToken() == nil)
+        XCTAssert(preferences.consoleURL == nil)
+        XCTAssert(try preferences.adminAccessToken() == nil)
     }
-
-    @Test
     func testXlyraOAuthLiveSummaryUsesRowsInsteadOfStaleOverviewCounts() throws {
         let data = """
         {
@@ -457,20 +436,18 @@ struct AppSmokeTests {
 
         let snapshot = try JSONDecoder().decode(XlyraSnapshot.self, from: data)
 
-        #expect(snapshot.oauth.total == 5)
-        #expect(snapshot.oauth.healthy == 5)
-        #expect(snapshot.oauth.liveTotal == 5)
-        #expect(snapshot.oauth.liveHealthy == 4)
-        #expect(snapshot.oauth.fiveHourCapacity.shortText == "78.5%")
-        #expect(abs(snapshot.oauth.fiveHourCapacity.remainingFraction - 0.785) < 0.0001)
-        #expect(snapshot.oauth.weeklyCapacity.shortText == "65%")
-        #expect(abs(snapshot.oauth.weeklyCapacity.remainingFraction - 0.65) < 0.0001)
-        #expect(snapshot.oauth.rows[0].planDisplayText == "PLUS")
-        #expect(snapshot.oauth.rows[1].planDisplayText == "TEAM")
-        #expect(snapshot.riskItems.contains("OAuth 异常 1 个"))
+        XCTAssert(snapshot.oauth.total == 5)
+        XCTAssert(snapshot.oauth.healthy == 5)
+        XCTAssert(snapshot.oauth.liveTotal == 5)
+        XCTAssert(snapshot.oauth.liveHealthy == 4)
+        XCTAssert(snapshot.oauth.fiveHourCapacity.shortText == "78.5%")
+        XCTAssert(abs(snapshot.oauth.fiveHourCapacity.remainingFraction - 0.785) < 0.0001)
+        XCTAssert(snapshot.oauth.weeklyCapacity.shortText == "65%")
+        XCTAssert(abs(snapshot.oauth.weeklyCapacity.remainingFraction - 0.65) < 0.0001)
+        XCTAssert(snapshot.oauth.rows[0].planDisplayText == "PLUS")
+        XCTAssert(snapshot.oauth.rows[1].planDisplayText == "TEAM")
+        XCTAssert(snapshot.riskItems.contains("OAuth 异常 1 个"))
     }
-
-    @Test
     func testXlyraOAuthMenuBarCapacityAveragesRemainingPercentAcrossHealthyAccounts() throws {
         let data = """
         {
@@ -551,25 +528,21 @@ struct AppSmokeTests {
 
         let snapshot = try JSONDecoder().decode(XlyraSnapshot.self, from: data)
 
-        #expect(snapshot.oauth.fiveHourCapacity.shortText == "60%")
-        #expect(abs(snapshot.oauth.fiveHourCapacity.remainingFraction - 0.60) < 0.0001)
-        #expect(snapshot.oauth.fiveHourCapacity.riskColorName == "green")
-        #expect(snapshot.oauth.weeklyCapacity.shortText == "10%")
-        #expect(abs(snapshot.oauth.weeklyCapacity.remainingFraction - 0.10) < 0.0001)
-        #expect(snapshot.oauth.weeklyCapacity.riskColorName == "orange")
+        XCTAssert(snapshot.oauth.fiveHourCapacity.shortText == "60%")
+        XCTAssert(abs(snapshot.oauth.fiveHourCapacity.remainingFraction - 0.60) < 0.0001)
+        XCTAssert(snapshot.oauth.fiveHourCapacity.riskColorName == "green")
+        XCTAssert(snapshot.oauth.weeklyCapacity.shortText == "10%")
+        XCTAssert(abs(snapshot.oauth.weeklyCapacity.remainingFraction - 0.10) < 0.0001)
+        XCTAssert(snapshot.oauth.weeklyCapacity.riskColorName == "orange")
     }
-
-    @Test
     func testXlyraOAuthRemainingRiskColorsFollowConfiguredBands() {
-        #expect(XlyraOAuthCapacity(averageRemainingPercent: 39).riskColorName == "yellow")
-        #expect(XlyraOAuthCapacity(averageRemainingPercent: 20).riskColorName == "yellow")
-        #expect(XlyraOAuthCapacity(averageRemainingPercent: 19).riskColorName == "orange")
-        #expect(XlyraOAuthCapacity(averageRemainingPercent: 10).riskColorName == "orange")
-        #expect(XlyraOAuthCapacity(averageRemainingPercent: 9).riskColorName == "red")
-        #expect(XlyraOAuthCapacity(averageRemainingPercent: 40).riskColorName == "green")
+        XCTAssert(XlyraOAuthCapacity(averageRemainingPercent: 39).riskColorName == "yellow")
+        XCTAssert(XlyraOAuthCapacity(averageRemainingPercent: 20).riskColorName == "yellow")
+        XCTAssert(XlyraOAuthCapacity(averageRemainingPercent: 19).riskColorName == "orange")
+        XCTAssert(XlyraOAuthCapacity(averageRemainingPercent: 10).riskColorName == "orange")
+        XCTAssert(XlyraOAuthCapacity(averageRemainingPercent: 9).riskColorName == "red")
+        XCTAssert(XlyraOAuthCapacity(averageRemainingPercent: 40).riskColorName == "green")
     }
-
-    @Test
     func testXlyraOAuthQuotaProgressColorKeepsLimitedAccountsPercentBased() throws {
         let account = try JSONDecoder().decode(XlyraOAuthRow.self, from: """
         {
@@ -586,11 +559,9 @@ struct AppSmokeTests {
         }
         """.data(using: .utf8)!)
 
-        #expect(account.stateText == "额度触顶")
-        #expect(account.quotaProgressColorName(remainingPercent: account.fiveHourRemainingDisplayPercent) == "orange")
+        XCTAssert(account.stateText == "额度触顶")
+        XCTAssert(account.quotaProgressColorName(remainingPercent: account.fiveHourRemainingDisplayPercent) == "orange")
     }
-
-    @Test
     func testXlyraOAuthQuotaProgressColorGraysUnavailableAccounts() throws {
         let account = try JSONDecoder().decode(XlyraOAuthRow.self, from: """
         {
@@ -607,10 +578,8 @@ struct AppSmokeTests {
         }
         """.data(using: .utf8)!)
 
-        #expect(account.quotaProgressColorName(remainingPercent: account.fiveHourRemainingDisplayPercent) == "gray")
+        XCTAssert(account.quotaProgressColorName(remainingPercent: account.fiveHourRemainingDisplayPercent) == "gray")
     }
-
-    @Test
     func testXlyraAntigravityOAuthUsesRemainingModelQuotaForProgressColor() throws {
         let json = """
         {
@@ -680,19 +649,17 @@ struct AppSmokeTests {
             requests: payload["requests"]!
         )
 
-        let account = try #require(snapshot.oauth.rows.first)
-        #expect(account.modelQuotas.map(\.model) == ["gemini-pro-agent", "claude-opus-4-6-thinking"])
-        #expect(account.quotaText == "Gemini 剩 88% · Opus 剩 95%")
-        #expect(account.quotaDisplays.map(\.title) == ["Gemini", "Opus"])
-        #expect(snapshot.oauth.fiveHourCapacity.shortText == "--")
-        #expect(snapshot.oauth.fiveHourCapacity.remainingFraction == 0)
-        #expect(snapshot.oauth.weeklyCapacity.shortText == "--")
-        #expect(snapshot.oauth.weeklyCapacity.remainingFraction == 0)
-        #expect(snapshot.oauth.primaryCapacityLabel == "5h")
-        #expect(snapshot.oauth.secondaryCapacityLabel == "7d")
+        let account = try XCTUnwrap(snapshot.oauth.rows.first)
+        XCTAssert(account.modelQuotas.map(\.model) == ["gemini-pro-agent", "claude-opus-4-6-thinking"])
+        XCTAssert(account.quotaText == "Gemini 剩 88% · Opus 剩 95%")
+        XCTAssert(account.quotaDisplays.map(\.title) == ["Gemini", "Opus"])
+        XCTAssert(snapshot.oauth.fiveHourCapacity.shortText == "--")
+        XCTAssert(snapshot.oauth.fiveHourCapacity.remainingFraction == 0)
+        XCTAssert(snapshot.oauth.weeklyCapacity.shortText == "--")
+        XCTAssert(snapshot.oauth.weeklyCapacity.remainingFraction == 0)
+        XCTAssert(snapshot.oauth.primaryCapacityLabel == "5h")
+        XCTAssert(snapshot.oauth.secondaryCapacityLabel == "7d")
     }
-
-    @Test
     func testXlyraAntigravityOAuthParsesTargetModelQuotas() throws {
         let json = """
         {
@@ -762,15 +729,13 @@ struct AppSmokeTests {
             requests: payload["requests"]!
         )
 
-        let account = try #require(snapshot.oauth.rows.first)
-        #expect(account.modelQuotas.map(\.model) == ["gemini-pro-agent", "claude-opus-4-6-thinking"])
-        #expect(account.quotaText == "Gemini 剩 18% · Opus 剩 95%")
-        #expect(account.quotaDisplays.map(\.title) == ["Gemini", "Opus"])
-        #expect(account.quotaDisplays.first?.usedPercent == 82)
-        #expect(account.quotaProgressColorName(remainingPercent: account.quotaDisplays.first?.remainingPercent) == "orange")
+        let account = try XCTUnwrap(snapshot.oauth.rows.first)
+        XCTAssert(account.modelQuotas.map(\.model) == ["gemini-pro-agent", "claude-opus-4-6-thinking"])
+        XCTAssert(account.quotaText == "Gemini 剩 18% · Opus 剩 95%")
+        XCTAssert(account.quotaDisplays.map(\.title) == ["Gemini", "Opus"])
+        XCTAssert(account.quotaDisplays.first?.usedPercent == 82)
+        XCTAssert(account.quotaProgressColorName(remainingPercent: account.quotaDisplays.first?.remainingPercent) == "orange")
     }
-
-    @Test
     func testXlyraSitesAndOAuthSortByStatusThenDescendingPriority() throws {
         let json = """
         {
@@ -816,7 +781,7 @@ struct AppSmokeTests {
             requests: payload["requests"]!
         )
 
-        #expect(snapshot.sites.rows.map(\.slug) == [
+        XCTAssert(snapshot.sites.rows.map(\.slug) == [
             "site-normal-high",
             "site-normal-low",
             "site-cooldown-high",
@@ -825,7 +790,7 @@ struct AppSmokeTests {
             "site-error-low",
             "site-disabled"
         ])
-        #expect(snapshot.oauth.rows.map(\.id) == [
+        XCTAssert(snapshot.oauth.rows.map(\.id) == [
             "oauth-normal-high",
             "oauth-normal-low",
             "oauth-cooldown-high",
@@ -833,11 +798,10 @@ struct AppSmokeTests {
             "oauth-error-high",
             "oauth-error-low"
         ])
-        #expect(snapshot.oauth.rows.map(\.priority) == [10, 1, 8, 2, 9, 3])
+        XCTAssert(snapshot.oauth.rows.map(\.priority) == [10, 1, 8, 2, 9, 3])
     }
 
     @MainActor
-    @Test
     func testXlyraMenuRendersScrollableDetailArea() throws {
         let snapshot = try JSONDecoder().decode(XlyraSnapshot.self, from: Self.longRenderSnapshotData)
         let state = XlyraMonitorState()
@@ -860,15 +824,13 @@ struct AppSmokeTests {
         hostingView.frame = NSRect(x: 0, y: 0, width: 460, height: 620)
         hostingView.layoutSubtreeIfNeeded()
 
-        #expect(Self.containsScrollView(hostingView))
+        XCTAssert(Self.containsScrollView(hostingView))
 
         if let previewPath = ProcessInfo.processInfo.environment["XLYRA_RENDER_PREVIEW_PATH"],
            previewPath.isEmpty == false {
             try Self.writePNG(hostingView, to: previewPath)
         }
     }
-
-    @Test
     func testXlyraAPISnapshotUsesDocumentedAdminAccessTokenEndpoints() async throws {
         let http = XlyraFakeHTTPClient(responses: [
             "/readyz": Data(),
@@ -890,33 +852,33 @@ struct AppSmokeTests {
 
         let snapshot = try await XlyraAPIMonitorService(httpClient: http).fetchSnapshot(preferences: preferences)
 
-        #expect(snapshot.oauth.total == 1)
-        #expect(snapshot.oauth.rows.first?.displayName == "codex@example.com")
-        #expect(snapshot.oauth.rows.first?.planType == "team")
-        #expect(snapshot.oauth.rows.first?.fiveHourRemainingPercent == 96)
-        #expect(snapshot.oauth.rows.first?.weeklyUsedPercent == 55)
-        #expect(snapshot.oauth.rows.first?.creditsBalance == "2")
-        #expect(snapshot.oauth.rows.first?.lastRefreshAt == "2026-05-27T05:01:06.765101+00:00")
-        #expect(snapshot.sites.healthy == 0)
-        #expect(snapshot.sites.rows.first?.stateText == "冷却中")
-        #expect(snapshot.oauth.rows.first?.stateText == "可用")
-        #expect(snapshot.sites.rows.first?.tokens24h == 111)
-        #expect(snapshot.sites.rows.first?.cost24h == 2.5)
-        #expect(snapshot.sites.rows.first?.validationOK == true)
-        #expect(snapshot.sites.rows.first?.syncStatus == "synced")
-        #expect(snapshot.sites.rows.first?.recentHealth?.latencyMS == 345)
-        #expect(snapshot.apiKeys.active == 1)
-        #expect(snapshot.requests.failed24h == 1)
-        #expect(snapshot.requests.last24h == 10)
-        #expect(snapshot.requests.ok24h == 9)
-        #expect(snapshot.usage.tokens24h == 111)
-        #expect(snapshot.errors.first?.errorType == "upstream_timeout")
-        #expect(snapshot.cooldowns.active == 2)
-        #expect(snapshot.usage.cost24h == 2.5)
+        XCTAssert(snapshot.oauth.total == 1)
+        XCTAssert(snapshot.oauth.rows.first?.displayName == "codex@example.com")
+        XCTAssert(snapshot.oauth.rows.first?.planType == "team")
+        XCTAssert(snapshot.oauth.rows.first?.fiveHourRemainingPercent == 96)
+        XCTAssert(snapshot.oauth.rows.first?.weeklyUsedPercent == 55)
+        XCTAssert(snapshot.oauth.rows.first?.creditsBalance == "2")
+        XCTAssert(snapshot.oauth.rows.first?.lastRefreshAt == "2026-05-27T05:01:06.765101+00:00")
+        XCTAssert(snapshot.sites.healthy == 0)
+        XCTAssert(snapshot.sites.rows.first?.stateText == "冷却中")
+        XCTAssert(snapshot.oauth.rows.first?.stateText == "可用")
+        XCTAssert(snapshot.sites.rows.first?.tokens24h == 111)
+        XCTAssert(snapshot.sites.rows.first?.cost24h == 2.5)
+        XCTAssert(snapshot.sites.rows.first?.validationOK == true)
+        XCTAssert(snapshot.sites.rows.first?.syncStatus == "synced")
+        XCTAssert(snapshot.sites.rows.first?.recentHealth?.latencyMS == 345)
+        XCTAssert(snapshot.apiKeys.active == 1)
+        XCTAssert(snapshot.requests.failed24h == 1)
+        XCTAssert(snapshot.requests.last24h == 10)
+        XCTAssert(snapshot.requests.ok24h == 9)
+        XCTAssert(snapshot.usage.tokens24h == 111)
+        XCTAssert(snapshot.errors.first?.errorType == "upstream_timeout")
+        XCTAssert(snapshot.cooldowns.active == 2)
+        XCTAssert(snapshot.usage.cost24h == 2.5)
 
         let requests = http.receivedRequests()
-        #expect(requests.count == 10)
-        #expect(Set(requests.map { Self.key(for: $0.url) }) == Set([
+        XCTAssert(requests.count == 10)
+        XCTAssert(Set(requests.map { Self.key(for: $0.url) }) == Set([
             "/readyz",
             "/api/v1/system/version",
             "/api/v1/site-types",
@@ -929,17 +891,15 @@ struct AppSmokeTests {
             "/api/v1/requests?page=1&page_size=50"
         ]))
         let publicProbePaths = Set(["/readyz", "/api/v1/system/version", "/api/v1/site-types"])
-        #expect(requests.filter { publicProbePaths.contains(Self.key(for: $0.url)) }.allSatisfy {
+        XCTAssert(requests.filter { publicProbePaths.contains(Self.key(for: $0.url)) }.allSatisfy {
             $0.value(forHTTPHeaderField: "X-Access-Token") == nil
         })
-        #expect(requests.filter { publicProbePaths.contains(Self.key(for: $0.url)) == false }.allSatisfy {
+        XCTAssert(requests.filter { publicProbePaths.contains(Self.key(for: $0.url)) == false }.allSatisfy {
             $0.value(forHTTPHeaderField: "X-Access-Token") == "test-admin-access-token"
         })
-        #expect(requests.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == nil })
-        #expect(requests.allSatisfy { $0.value(forHTTPHeaderField: "X-API-Key") == nil })
+        XCTAssert(requests.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == nil })
+        XCTAssert(requests.allSatisfy { $0.value(forHTTPHeaderField: "X-API-Key") == nil })
     }
-
-    @Test
     func testXlyraOAuthRefreshUsesDocumentedConnectionRefreshEndpoint() async throws {
         let http = XlyraFakeHTTPClient(responses: [
             "/api/v1/oauth/connections/oauth-1/refresh": Data(),
@@ -957,17 +917,15 @@ struct AppSmokeTests {
         )
 
         let requests = http.receivedRequests()
-        #expect(requests.map { $0.httpMethod } == ["POST", "POST"])
-        #expect(requests.map { Self.key(for: $0.url) } == [
+        XCTAssert(requests.map { $0.httpMethod } == ["POST", "POST"])
+        XCTAssert(requests.map { Self.key(for: $0.url) } == [
             "/api/v1/oauth/connections/oauth-1/refresh",
             "/api/v1/oauth/connections/oauth-2/refresh"
         ])
-        #expect(requests.allSatisfy {
+        XCTAssert(requests.allSatisfy {
             $0.value(forHTTPHeaderField: "X-Access-Token") == "test-admin-access-token"
         })
     }
-
-    @Test
     func testXlyraOAuthImportUsesDocumentedImportEndpoint() async throws {
         let responseData = #"{"message":"ok","data":{"imported":2,"failed":0}}"#.data(using: .utf8)!
         let http = XlyraFakeHTTPClient(responses: [
@@ -985,14 +943,14 @@ struct AppSmokeTests {
             payload: payload
         )
 
-        #expect(result.message == "ok · 导入 2 · 失败 0")
+        XCTAssert(result.message == "ok · 导入 2 · 失败 0")
         let requests = http.receivedRequests()
-        #expect(requests.count == 1)
-        #expect(requests.first?.httpMethod == "POST")
-        #expect(Self.key(for: requests.first?.url) == "/api/v1/oauth/import")
-        #expect(requests.first?.value(forHTTPHeaderField: "X-Access-Token") == "test-admin-access-token")
-        #expect(requests.first?.value(forHTTPHeaderField: "Content-Type") == "application/json")
-        #expect(requests.first?.httpBody == payload)
+        XCTAssert(requests.count == 1)
+        XCTAssert(requests.first?.httpMethod == "POST")
+        XCTAssert(Self.key(for: requests.first?.url) == "/api/v1/oauth/import")
+        XCTAssert(requests.first?.value(forHTTPHeaderField: "X-Access-Token") == "test-admin-access-token")
+        XCTAssert(requests.first?.value(forHTTPHeaderField: "Content-Type") == "application/json")
+        XCTAssert(requests.first?.httpBody == payload)
     }
 
     @MainActor

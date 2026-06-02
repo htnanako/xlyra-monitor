@@ -1,19 +1,16 @@
 import Foundation
-import Testing
+import XCTest
 @testable import XlyraMonitorApp
 
-@Suite("AppPreferencesTests")
 @MainActor
-struct AppPreferencesTests {
-    @Test
-    func defaultImportDirectoryIsDownloads() {
+final class AppPreferencesTests: XCTestCase {
+    func testDefaultImportDirectoryIsDownloads() {
         let preferences = AppPreferences(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
 
-        #expect(preferences.importDirectoryPath.hasSuffix("/Downloads"))
+        XCTAssert(preferences.importDirectoryPath.hasSuffix("/Downloads"))
     }
 
-    @Test
-    func savesCustomImportDirectory() {
+    func testSavesCustomImportDirectory() {
         let suiteName = UUID().uuidString
         let defaults = UserDefaults(suiteName: suiteName)!
         let preferences = AppPreferences(userDefaults: defaults)
@@ -21,11 +18,10 @@ struct AppPreferencesTests {
         preferences.updateImportDirectoryPath("/tmp/imports")
 
         let reloaded = AppPreferences(userDefaults: defaults)
-        #expect(reloaded.importDirectoryPath == "/tmp/imports")
+        XCTAssert(reloaded.importDirectoryPath == "/tmp/imports")
     }
 
-    @Test
-    func savesThemeMode() {
+    func testSavesThemeMode() {
         let suiteName = UUID().uuidString
         let defaults = UserDefaults(suiteName: suiteName)!
         let preferences = AppPreferences(userDefaults: defaults)
@@ -38,14 +34,13 @@ struct AppPreferencesTests {
         )
 
         let reloaded = AppPreferences(userDefaults: defaults)
-        #expect(reloaded.themeMode == .dark)
-        #expect(reloaded.refreshIntervalSeconds == 60)
-        #expect(reloaded.oauthRefreshIntervalSeconds == 120)
-        #expect(reloaded.showsMenuBarNumbers)
+        XCTAssert(reloaded.themeMode == .dark)
+        XCTAssert(reloaded.refreshIntervalSeconds == 60)
+        XCTAssert(reloaded.oauthRefreshIntervalSeconds == 120)
+        XCTAssert(reloaded.showsMenuBarNumbers)
     }
 
-    @Test
-    func updatesThemeModeIndependently() {
+    func testUpdatesThemeModeIndependently() {
         let suiteName = UUID().uuidString
         let defaults = UserDefaults(suiteName: suiteName)!
         let preferences = AppPreferences(userDefaults: defaults)
@@ -53,10 +48,10 @@ struct AppPreferencesTests {
         preferences.updateThemeMode(.dark)
 
         let reloaded = AppPreferences(userDefaults: defaults)
-        #expect(preferences.themeMode == .dark)
-        #expect(reloaded.themeMode == .dark)
-        #expect(reloaded.refreshIntervalSeconds == 30)
-        #expect(reloaded.oauthRefreshIntervalSeconds == 300)
-        #expect(reloaded.showsMenuBarNumbers == false)
+        XCTAssert(preferences.themeMode == .dark)
+        XCTAssert(reloaded.themeMode == .dark)
+        XCTAssert(reloaded.refreshIntervalSeconds == 30)
+        XCTAssert(reloaded.oauthRefreshIntervalSeconds == 300)
+        XCTAssert(reloaded.showsMenuBarNumbers == false)
     }
 }
