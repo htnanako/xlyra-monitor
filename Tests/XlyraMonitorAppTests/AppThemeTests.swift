@@ -109,25 +109,28 @@ final class AppThemeTests: XCTestCase {
         ).isDark == false)
     }
 
-    func testMenuBarPaletteUsesTemplateMaskColor() {
-        XCTAssert(Self.redComponent(of: MenuBarPalette().text) < 0.05)
+    func testMenuBarPaletteUsesReadableTextForMenuBarBackground() {
+        XCTAssert(Self.redComponent(of: MenuBarPalette(isDarkBackground: false).text) < 0.05)
+        XCTAssert(Self.redComponent(of: MenuBarPalette(isDarkBackground: true).text) > 0.90)
     }
 
     @MainActor
-    func testMenuBarLabelRenderingUsesSystemTemplateTinting() {
+    func testMenuBarLabelRenderingKeepsSemanticStatusColors() {
         let state = XlyraMonitorState()
         let fallbackImage = XlyraMenuBarImageRenderer.image(
             state: state,
-            palette: MenuBarPalette()
+            palette: MenuBarPalette(isDarkBackground: false)
         )
 
-        XCTAssert(fallbackImage.isTemplate)
-        Self.assertImageUsesTemplateMaskOnly(fallbackImage)
+        XCTAssert(fallbackImage.isTemplate == false)
 
         state.applySuccess(XlyraSnapshot(
             generatedAt: "2026-06-01T08:00:00.000Z",
             sites: XlyraSiteSummary(total: 1, healthy: 1, rows: []),
-            oauth: XlyraOAuthSummary(total: 1, healthy: 1, limited: 0, rows: []),
+            oauth: XlyraOAuthSummary(total: 2, healthy: 2, limited: 0, rows: [
+                Self.oauthRow(id: "oauth-1", fiveHourUsedPercent: 20, weeklyUsedPercent: 85),
+                Self.oauthRow(id: "oauth-2", fiveHourUsedPercent: 60, weeklyUsedPercent: 95)
+            ]),
             apiKeys: XlyraAPIKeySummary(total: 1, active: 1, exhausted: 0, rows: []),
             requests: XlyraRequestSummary(
                 total: 100,
@@ -144,40 +147,79 @@ final class AppThemeTests: XCTestCase {
 
         let connectedImage = XlyraMenuBarImageRenderer.image(
             state: state,
-            palette: MenuBarPalette()
+            palette: MenuBarPalette(isDarkBackground: false)
         )
 
-        XCTAssert(connectedImage.isTemplate)
-        Self.assertImageUsesTemplateMaskOnly(connectedImage)
+        XCTAssert(connectedImage.isTemplate == false)
+        Self.assertImageContainsSemanticColor(connectedImage, minimumX: 30)
     }
 
-    private static func assertImageUsesTemplateMaskOnly(
+    private static func assertImageContainsSemanticColor(
         _ image: NSImage,
+        minimumX: Int = 0,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
         guard let data = image.tiffRepresentation,
               let bitmap = NSBitmapImageRep(data: data) else {
-            XCTFail("Expected a bitmap-backed menu bar image", file: file, line: line)
+            XCTFail("Expected a bitmap-backed semantic menu bar image", file: file, line: line)
             return
         }
 
+        var foundSemanticColor = false
         for y in 0..<bitmap.pixelsHigh {
-            for x in 0..<bitmap.pixelsWide {
+            for x in max(0, minimumX)..<bitmap.pixelsWide {
                 guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB),
                       color.alphaComponent > 0.01 else {
                     continue
                 }
                 let redGreenDelta = abs(color.redComponent - color.greenComponent)
                 let greenBlueDelta = abs(color.greenComponent - color.blueComponent)
-                XCTAssert(
-                    redGreenDelta < 0.02 && greenBlueDelta < 0.02,
-                    "Menu bar template images should be grayscale masks, not semantic-color bitmaps.",
-                    file: file,
-                    line: line
-                )
+                if redGreenDelta > 0.08 || greenBlueDelta > 0.08 {
+                    foundSemanticColor = true
+                    break
+                }
             }
         }
+
+        XCTAssert(
+            foundSemanticColor,
+            "Menu bar semantic status shapes should keep their risk colors.",
+            file: file,
+            line: line
+        )
+    }
+
+    private static func oauthRow(
+        id: String,
+        fiveHourUsedPercent: Double,
+        weeklyUsedPercent: Double
+    ) -> XlyraOAuthRow {
+        XlyraOAuthRow(
+            id: id,
+            provider: "codex",
+            siteName: nil,
+            siteSlug: nil,
+            status: "connected",
+            accountID: id,
+            email: "\(id)@example.com",
+            planType: nil,
+            available: true,
+            limitReached: false,
+            fiveHourUsedPercent: fiveHourUsedPercent,
+            fiveHourRemainingPercent: nil,
+            fiveHourResetAt: nil,
+            weeklyUsedPercent: weeklyUsedPercent,
+            weeklyRemainingPercent: nil,
+            weeklyResetAt: nil,
+            creditsBalance: nil,
+            creditsUnlimited: nil,
+            lastRefreshAt: nil,
+            lastSyncAt: nil,
+            expiresAt: nil,
+            tokens24h: 0,
+            cost24h: 0
+        )
     }
 
     private static func redComponent(of color: NSColor) -> CGFloat {
