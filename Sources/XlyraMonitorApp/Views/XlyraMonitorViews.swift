@@ -55,9 +55,9 @@ struct MenuTheme {
             effectiveAppearance: effectiveAppearance
         )
         background = isDark ? Color(red: 0.06, green: 0.07, blue: 0.09).opacity(0.16) : Color.white.opacity(0.08)
-        card = isDark ? Color(red: 0.12, green: 0.13, blue: 0.16) : Color.white.opacity(0.72)
-        elevatedCard = isDark ? Color(red: 0.15, green: 0.16, blue: 0.19) : Color.white.opacity(0.88)
-        control = isDark ? Color(red: 0.17, green: 0.18, blue: 0.21) : Color.black.opacity(0.07)
+        card = isDark ? Color.white.opacity(0.07) : Color.white.opacity(0.34)
+        elevatedCard = isDark ? Color.white.opacity(0.10) : Color.white.opacity(0.48)
+        control = isDark ? Color.white.opacity(0.09) : Color.black.opacity(0.06)
         separator = isDark ? Color.white.opacity(0.10) : Color.black.opacity(0.10)
         text = isDark ? .white : Color(red: 0.10, green: 0.11, blue: 0.13)
         secondary = isDark ? Color.white.opacity(0.62) : Color.black.opacity(0.58)
@@ -112,9 +112,49 @@ struct MenuToolButtonStyle: ButtonStyle {
             .padding(.horizontal, 9)
             .frame(height: 28)
             .background(
-                RoundedRectangle(cornerRadius: 7)
-                    .fill(configuration.isPressed ? theme.control.opacity(0.7) : theme.control)
+                XlyraMenuMaterialCardBackground(
+                    cornerRadius: 7,
+                    material: .thinMaterial,
+                    tint: configuration.isPressed ? theme.control.opacity(0.7) : theme.control
+                )
             )
+    }
+}
+
+private struct XlyraMenuMaterialCardBackground: View {
+    let cornerRadius: CGFloat
+    let material: Material
+    let tint: Color
+    let stroke: Color?
+    let lineWidth: CGFloat
+
+    init(
+        cornerRadius: CGFloat,
+        material: Material = .regularMaterial,
+        tint: Color,
+        stroke: Color? = nil,
+        lineWidth: CGFloat = 1
+    ) {
+        self.cornerRadius = cornerRadius
+        self.material = material
+        self.tint = tint
+        self.stroke = stroke
+        self.lineWidth = lineWidth
+    }
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: cornerRadius)
+            .fill(material)
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .fill(tint)
+            )
+            .overlay {
+                if let stroke {
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .strokeBorder(stroke, lineWidth: lineWidth)
+                }
+            }
     }
 }
 
@@ -484,7 +524,7 @@ struct XlyraStatusMenuView: View {
                     .foregroundStyle(state.lastError == nil ? theme.secondary : theme.red)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(12)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(theme.card))
+                    .background(XlyraMenuMaterialCardBackground(cornerRadius: 8, tint: theme.card))
             }
 
             Rectangle()
@@ -594,7 +634,7 @@ private struct XlyraTabStrip: View {
             tabButton(.apiKeys, countText: "\(snapshot.apiKeys.active)/\(snapshot.apiKeys.total)")
         }
         .padding(3)
-        .background(RoundedRectangle(cornerRadius: 8).fill(theme.control))
+        .background(XlyraMenuMaterialCardBackground(cornerRadius: 8, material: .thinMaterial, tint: theme.control))
     }
 
     private func tabButton(_ tab: XlyraDetailTab, countText: String) -> some View {
@@ -609,10 +649,11 @@ private struct XlyraTabStrip: View {
         .frame(maxWidth: .infinity)
         .frame(height: 28)
         .contentShape(Rectangle())
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(selectedTab == tab ? theme.card : Color.clear)
-        )
+        .background {
+            if selectedTab == tab {
+                XlyraMenuMaterialCardBackground(cornerRadius: 6, material: .thinMaterial, tint: theme.card)
+            }
+        }
         .onTapGesture {
             onSelect(tab)
         }
@@ -757,7 +798,7 @@ private struct XlyraStatCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(RoundedRectangle(cornerRadius: 8).fill(theme.elevatedCard))
+        .background(XlyraMenuMaterialCardBackground(cornerRadius: 8, tint: theme.elevatedCard))
     }
 }
 
@@ -917,7 +958,7 @@ private struct XlyraEmptyState: View {
             .foregroundStyle(theme.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(10)
-            .background(RoundedRectangle(cornerRadius: 8).fill(theme.card))
+            .background(XlyraMenuMaterialCardBackground(cornerRadius: 8, tint: theme.card))
     }
 }
 
@@ -949,7 +990,11 @@ private struct XlyraOAuthRowView: View {
                                 .foregroundStyle(theme.secondary)
                                 .padding(.horizontal, 5)
                                 .frame(height: 17)
-                                .background(Capsule().fill(theme.control))
+                                .background(
+                                    Capsule()
+                                        .fill(.thinMaterial)
+                                        .overlay(Capsule().fill(theme.control))
+                                )
                         }
                         Text(compactSubtitle)
                             .font(.system(size: 11, weight: .medium))
@@ -1008,12 +1053,11 @@ private struct XlyraOAuthRowView: View {
         .padding(.vertical, 9)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(theme.card)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(account.isHealthy ? theme.separator : theme.red.opacity(0.45), lineWidth: 1)
-                )
+            XlyraMenuMaterialCardBackground(
+                cornerRadius: 8,
+                tint: theme.card,
+                stroke: account.isHealthy ? theme.separator : theme.red.opacity(0.45)
+            )
         )
     }
 
@@ -1102,8 +1146,11 @@ private struct XlyraOAuthQuotaBar: View {
         .padding(.horizontal, 9)
         .padding(.vertical, 7)
         .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(theme.elevatedCard.opacity(theme.isDark ? 0.76 : 0.88))
+            XlyraMenuMaterialCardBackground(
+                cornerRadius: 8,
+                material: .thinMaterial,
+                tint: theme.elevatedCard
+            )
         )
     }
 
@@ -1203,7 +1250,7 @@ private struct XlyraSiteRowView: View {
                         .foregroundStyle(theme.secondary)
                         .lineLimit(1)
                         .frame(width: 54, height: 17)
-                        .background(RoundedRectangle(cornerRadius: 4).fill(theme.control))
+                        .background(XlyraMenuMaterialCardBackground(cornerRadius: 4, material: .thinMaterial, tint: theme.control))
                 }
 
                 Text("P\(XlyraFormat.priority(site.priority)) · \(site.modelCount) 模型 · \(site.apiKeyCount) Key")
@@ -1231,12 +1278,11 @@ private struct XlyraSiteRowView: View {
         .padding(.vertical, 7)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(theme.card)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(site.isHealthy ? theme.separator : theme.red.opacity(0.45), lineWidth: 1)
-                )
+            XlyraMenuMaterialCardBackground(
+                cornerRadius: 8,
+                tint: theme.card,
+                stroke: site.isHealthy ? theme.separator : theme.red.opacity(0.45)
+            )
         )
     }
 
@@ -1315,7 +1361,7 @@ private struct XlyraAPIKeyRowView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 9)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8).fill(theme.card))
+        .background(XlyraMenuMaterialCardBackground(cornerRadius: 8, tint: theme.card))
     }
 }
 
@@ -1338,7 +1384,7 @@ private struct XlyraInlineMetric: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 8)
         .frame(height: 22)
-        .background(RoundedRectangle(cornerRadius: 6).fill(theme.elevatedCard))
+        .background(XlyraMenuMaterialCardBackground(cornerRadius: 6, material: .thinMaterial, tint: theme.elevatedCard))
     }
 }
 
