@@ -74,6 +74,33 @@ struct MenuTheme {
     }
 }
 
+private enum XlyraBadgePalette {
+    struct Tone {
+        let foreground: Color
+        let background: Color
+    }
+
+    static func tone(for text: String) -> Tone {
+        let palette: [Tone] = [
+            Tone(foreground: Color(red: 0.48, green: 0.92, blue: 0.68), background: Color(red: 0.12, green: 0.52, blue: 0.30).opacity(0.34)),
+            Tone(foreground: Color(red: 0.57, green: 0.78, blue: 1.00), background: Color(red: 0.18, green: 0.38, blue: 0.72).opacity(0.34)),
+            Tone(foreground: Color(red: 0.86, green: 0.72, blue: 1.00), background: Color(red: 0.48, green: 0.28, blue: 0.72).opacity(0.34)),
+            Tone(foreground: Color(red: 1.00, green: 0.70, blue: 0.88), background: Color(red: 0.70, green: 0.24, blue: 0.52).opacity(0.34)),
+            Tone(foreground: Color(red: 1.00, green: 0.78, blue: 0.48), background: Color(red: 0.74, green: 0.40, blue: 0.10).opacity(0.34)),
+            Tone(foreground: Color(red: 0.53, green: 0.92, blue: 0.92), background: Color(red: 0.10, green: 0.52, blue: 0.56).opacity(0.34))
+        ]
+        return palette[stableIndex(for: text, modulo: palette.count)]
+    }
+
+    private static func stableIndex(for text: String, modulo: Int) -> Int {
+        let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let hash = normalized.unicodeScalars.reduce(UInt32(2_166_136_261)) { result, scalar in
+            (result ^ UInt32(scalar.value)) &* 16_777_619
+        }
+        return Int(hash % UInt32(modulo))
+    }
+}
+
 private enum XlyraRiskPalette {
     static func color(forRiskName riskColorName: String, fallback: Color) -> Color {
         guard let nsColor = nsColor(forRiskName: riskColorName) else {
@@ -155,6 +182,28 @@ private struct XlyraMenuMaterialCardBackground: View {
                         .strokeBorder(stroke, lineWidth: lineWidth)
                 }
             }
+    }
+}
+
+private struct XlyraBadge: View {
+    let text: String
+
+    var body: some View {
+        let tone = XlyraBadgePalette.tone(for: text)
+
+        Text(text)
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(tone.foreground)
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.horizontal, 5)
+            .frame(height: 17)
+            .background(
+                Capsule()
+                    .fill(.thinMaterial)
+                    .overlay(Capsule().fill(tone.background))
+                    .overlay(Capsule().strokeBorder(tone.foreground.opacity(0.22), lineWidth: 0.8))
+            )
+            .layoutPriority(1)
     }
 }
 
@@ -966,16 +1015,7 @@ private struct XlyraOAuthRowView: View {
                                 .foregroundStyle(theme.text)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
-                            Text(account.planDisplayText)
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(theme.secondary)
-                                .padding(.horizontal, 5)
-                                .frame(height: 17)
-                                .background(
-                                    Capsule()
-                                        .fill(.thinMaterial)
-                                        .overlay(Capsule().fill(theme.control))
-                                )
+                            XlyraBadge(text: account.planDisplayText)
                         }
                         Text(compactSubtitle)
                             .font(.system(size: 11, weight: .medium))
@@ -1226,12 +1266,7 @@ private struct XlyraSiteRowView: View {
                         .foregroundStyle(theme.text)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    Text(site.type)
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(theme.secondary)
-                        .lineLimit(1)
-                        .frame(width: 54, height: 17)
-                        .background(XlyraMenuMaterialCardBackground(cornerRadius: 4, material: .thinMaterial, tint: theme.control))
+                    XlyraBadge(text: site.type)
                 }
 
                 Text("P\(XlyraFormat.priority(site.priority)) · \(site.modelCount) 模型 · \(site.apiKeyCount) Key")
