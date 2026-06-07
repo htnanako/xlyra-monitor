@@ -1333,6 +1333,8 @@ private struct XlyraPlainMetric: View {
 private struct XlyraAPIKeyRowView: View {
     let apiKey: XlyraAPIKeyRow
     let theme: MenuTheme
+    @State private var copied = false
+    @State private var copyResetTask: Task<Void, Never>?
 
     var body: some View {
         HStack(spacing: 9) {
@@ -1365,19 +1367,35 @@ private struct XlyraAPIKeyRowView: View {
             Button {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(apiKey.copyText, forType: .string)
+                copyResetTask?.cancel()
+                withAnimation(.easeOut(duration: 0.16)) {
+                    copied = true
+                }
+                copyResetTask = Task {
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                    guard Task.isCancelled == false else { return }
+                    await MainActor.run {
+                        withAnimation(.easeOut(duration: 0.16)) {
+                            copied = false
+                        }
+                    }
+                }
             } label: {
-                Image(systemName: "doc.on.doc")
+                Image(systemName: copied ? "checkmark.square.fill" : "doc.on.doc")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(theme.secondary)
+                    .foregroundStyle(copied ? theme.green : theme.secondary)
                     .frame(width: 22, height: 22)
             }
             .buttonStyle(.plain)
-            .help("复制 API Key")
+            .help(copied ? "已复制" : "复制 API Key")
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 9)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(XlyraMenuMaterialCardBackground(cornerRadius: 8, tint: theme.card))
+        .onDisappear {
+            copyResetTask?.cancel()
+        }
     }
 }
 
