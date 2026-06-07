@@ -54,7 +54,7 @@ struct MenuTheme {
             systemInterfaceStyle: systemInterfaceStyle,
             effectiveAppearance: effectiveAppearance
         )
-        background = isDark ? Color(red: 0.06, green: 0.07, blue: 0.09) : Color(red: 0.95, green: 0.96, blue: 0.97)
+        background = isDark ? Color(red: 0.06, green: 0.07, blue: 0.09).opacity(0.16) : Color.white.opacity(0.08)
         card = isDark ? Color(red: 0.12, green: 0.13, blue: 0.16) : Color.white.opacity(0.72)
         elevatedCard = isDark ? Color(red: 0.15, green: 0.16, blue: 0.19) : Color.white.opacity(0.88)
         control = isDark ? Color(red: 0.17, green: 0.18, blue: 0.21) : Color.black.opacity(0.07)
@@ -531,7 +531,11 @@ struct XlyraStatusMenuView: View {
         }
         .padding(12)
         .frame(width: XlyraMenuLayout.width)
-        .background(theme.background)
+        .background {
+            Rectangle()
+                .fill(.regularMaterial)
+                .overlay(theme.background)
+        }
         .environment(\.colorScheme, theme.isDark ? .dark : .light)
         .preferredColorScheme(theme.isDark ? .dark : .light)
     }

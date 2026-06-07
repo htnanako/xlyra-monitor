@@ -88,8 +88,19 @@ private extension NSAppearance {
 
 struct ThemedSceneContent<Content: View>: View {
     @ObservedObject var preferences: AppPreferences
+    let usesSolidWindowBackground: Bool
     @ViewBuilder let content: () -> Content
     @Environment(\.colorScheme) private var systemColorScheme
+
+    init(
+        preferences: AppPreferences,
+        usesSolidWindowBackground: Bool = true,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.preferences = preferences
+        self.usesSolidWindowBackground = usesSolidWindowBackground
+        self.content = content
+    }
 
     var body: some View {
         let resolvedColorScheme = preferences.themeMode.resolvedColorScheme(
@@ -99,10 +110,12 @@ struct ThemedSceneContent<Content: View>: View {
         content()
             .environment(\.colorScheme, resolvedColorScheme)
             .preferredColorScheme(resolvedColorScheme)
-            .background(
-                Color(nsColor: .windowBackgroundColor)
-                    .ignoresSafeArea()
-            )
+            .background {
+                if usesSolidWindowBackground {
+                    Color(nsColor: .windowBackgroundColor)
+                        .ignoresSafeArea()
+                }
+            }
             .background(
                 WindowAppearanceUpdater(
                     themeMode: preferences.themeMode,

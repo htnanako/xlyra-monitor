@@ -18,7 +18,10 @@ struct XlyraMonitorApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            ThemedSceneContent(preferences: container.appPreferences) {
+            ThemedSceneContent(
+                preferences: container.appPreferences,
+                usesSolidWindowBackground: false
+            ) {
                 XlyraStatusMenuView(
                     state: container.state,
                     preferences: container.appPreferences,
