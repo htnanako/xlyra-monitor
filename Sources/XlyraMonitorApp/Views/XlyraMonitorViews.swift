@@ -494,8 +494,6 @@ struct XlyraStatusMenuView: View {
                 XlyraDetailHeader(
                     selectedTab: selectedTab,
                     snapshot: snapshot,
-                    state: state,
-                    monitor: monitor,
                     theme: theme
                 )
 
@@ -823,27 +821,10 @@ private struct XlyraSectionHeader: View {
 private struct XlyraDetailHeader: View {
     let selectedTab: XlyraDetailTab
     let snapshot: XlyraSnapshot
-    @ObservedObject var state: XlyraMonitorState
-    let monitor: XlyraMonitor
     let theme: MenuTheme
 
     var body: some View {
-        HStack(spacing: 8) {
-            XlyraSectionHeader(title: title, detail: detail, theme: theme)
-
-            if selectedTab == .oauth {
-                Button {
-                    Task { await monitor.refreshOAuth() }
-                } label: {
-                    Label("刷新", systemImage: "arrow.clockwise")
-                        .labelStyle(.iconOnly)
-                }
-                .help("刷新 OAuth 额度")
-                .disabled(state.isRefreshing)
-                .buttonStyle(MenuToolButtonStyle(theme: theme))
-                .controlSize(.small)
-            }
-        }
+        XlyraSectionHeader(title: title, detail: detail, theme: theme)
     }
 
     private var title: String {
@@ -937,7 +918,7 @@ private struct XlyraAPIKeysPane: View {
                 XlyraEmptyState(text: "暂无 API Key", theme: theme)
             } else {
                 VStack(alignment: .leading, spacing: 7) {
-                    ForEach(snapshot.apiKeys.rows) { apiKey in
+                    ForEach(snapshot.apiKeys.rows.reversed()) { apiKey in
                         XlyraAPIKeyRowView(apiKey: apiKey, theme: theme)
                     }
                 }
