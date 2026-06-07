@@ -640,7 +640,8 @@ final class AppSmokeTests: XCTestCase {
             ready: (),
             version: [:],
             siteTypes: [],
-            overview: payload["dashboard"]!,
+            usage: payload["dashboard"]!,
+            insights: [:],
             oauth: payload["oauth"]!,
             sites: payload["sites"]!,
             apiKeys: payload["api_keys"]!,
@@ -720,7 +721,8 @@ final class AppSmokeTests: XCTestCase {
             ready: (),
             version: [:],
             siteTypes: [],
-            overview: payload["dashboard"]!,
+            usage: payload["dashboard"]!,
+            insights: [:],
             oauth: payload["oauth"]!,
             sites: payload["sites"]!,
             apiKeys: payload["api_keys"]!,
@@ -772,7 +774,8 @@ final class AppSmokeTests: XCTestCase {
             ready: (),
             version: payload["version"]!,
             siteTypes: payload["site_types"]!,
-            overview: payload["dashboard"]!,
+            usage: payload["dashboard"]!,
+            insights: [:],
             oauth: payload["oauth"]!,
             sites: payload["sites"]!,
             apiKeys: payload["api_keys"]!,
@@ -836,12 +839,13 @@ final class AppSmokeTests: XCTestCase {
             "/readyz": Data(),
             "/api/v1/system/version": Self.apiVersionData,
             "/api/v1/site-types": Self.apiSiteTypesData,
-            "/api/v1/dashboard/overview": Self.apiOverviewData,
+            "/api/v1/dashboard/usage": Self.apiUsageData,
+            "/api/v1/dashboard/insights": Self.apiInsightsData,
             "/api/v1/oauth/connections": Self.apiOAuthData,
             "/api/v1/sites?oauth=exclude": Self.apiSitesData,
             "/api/v1/api-keys": Self.apiKeysData,
             "/api/v1/health/sites": Self.apiHealthSitesData,
-            "/api/v1/routes/cooldowns": Self.apiCooldownsData,
+            "/api/v1/dashboard/cooldowns": Self.apiCooldownsData,
             "/api/v1/requests?page=1&page_size=50": Self.apiRequestsData
         ])
         let preferences = XlyraMonitorPreferences(
@@ -877,17 +881,18 @@ final class AppSmokeTests: XCTestCase {
         XCTAssert(snapshot.usage.cost24h == 2.5)
 
         let requests = http.receivedRequests()
-        XCTAssert(requests.count == 10)
+        XCTAssert(requests.count == 11)
         XCTAssert(Set(requests.map { Self.key(for: $0.url) }) == Set([
             "/readyz",
             "/api/v1/system/version",
             "/api/v1/site-types",
-            "/api/v1/dashboard/overview",
+            "/api/v1/dashboard/usage",
+            "/api/v1/dashboard/insights",
             "/api/v1/oauth/connections",
             "/api/v1/sites?oauth=exclude",
             "/api/v1/api-keys",
             "/api/v1/health/sites",
-            "/api/v1/routes/cooldowns",
+            "/api/v1/dashboard/cooldowns",
             "/api/v1/requests?page=1&page_size=50"
         ]))
         let publicProbePaths = Set(["/readyz", "/api/v1/system/version", "/api/v1/site-types"])
@@ -1190,7 +1195,7 @@ final class AppSmokeTests: XCTestCase {
     }
     """.data(using: .utf8)!
 
-    private static let apiOverviewData = """
+    private static let apiUsageData = """
     {
       "meta": {
         "generated_at": "2026-05-27T07:24:55.881939Z"
@@ -1211,9 +1216,6 @@ final class AppSmokeTests: XCTestCase {
           "tpm": { "used": 3456, "actual": 111, "reserved": 0 }
         }
       },
-      "errors": [
-        { "error_type": "upstream_timeout", "count": 1 }
-      ],
       "windows": {
         "7": {
           "site_cost_summary": [
@@ -1230,6 +1232,19 @@ final class AppSmokeTests: XCTestCase {
           ]
         }
       }
+    }
+    """.data(using: .utf8)!
+
+    private static let apiInsightsData = """
+    {
+      "insights": {
+        "failure_reasons": [
+          { "reason": "upstream_timeout", "request_count": 1 }
+        ],
+        "insufficient_candidates": [],
+        "high_latency": []
+      },
+      "attention": { "items": [] }
     }
     """.data(using: .utf8)!
 

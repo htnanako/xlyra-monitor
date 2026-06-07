@@ -1103,12 +1103,13 @@ struct XlyraAPIMonitorService: XlyraSnapshotFetching {
         async let ready = fetchProbe(path: "readyz", preferences: preferences, accessToken: nil)
         async let version = fetchJSON(path: "api/v1/system/version", preferences: preferences, accessToken: nil)
         async let siteTypes = fetchJSON(path: "api/v1/site-types", preferences: preferences, accessToken: nil)
-        async let overview = fetchJSON(path: "api/v1/dashboard/overview", preferences: preferences, accessToken: accessToken)
+        async let usage = fetchJSON(path: "api/v1/dashboard/usage", preferences: preferences, accessToken: accessToken)
+        async let insights = fetchJSON(path: "api/v1/dashboard/insights", preferences: preferences, accessToken: accessToken)
         async let oauth = fetchJSON(path: "api/v1/oauth/connections", preferences: preferences, accessToken: accessToken)
         async let sites = fetchJSON(path: "api/v1/sites?oauth=exclude", preferences: preferences, accessToken: accessToken)
         async let apiKeys = fetchJSON(path: "api/v1/api-keys", preferences: preferences, accessToken: accessToken)
         async let healthSites = fetchJSON(path: "api/v1/health/sites", preferences: preferences, accessToken: accessToken)
-        async let cooldowns = fetchJSON(path: "api/v1/routes/cooldowns", preferences: preferences, accessToken: accessToken)
+        async let cooldowns = fetchJSON(path: "api/v1/dashboard/cooldowns", preferences: preferences, accessToken: accessToken)
         async let requests = fetchJSON(path: "api/v1/requests?page=1&page_size=50", preferences: preferences, accessToken: accessToken)
 
         do {
@@ -1116,7 +1117,8 @@ struct XlyraAPIMonitorService: XlyraSnapshotFetching {
                 ready: ready,
                 version: version,
                 siteTypes: siteTypes,
-                overview: overview,
+                usage: usage,
+                insights: insights,
                 oauth: oauth,
                 sites: sites,
                 apiKeys: apiKeys,
@@ -1259,7 +1261,8 @@ enum XlyraAPISnapshotBuilder {
         ready: Void,
         version: Any,
         siteTypes: Any,
-        overview: Any,
+        usage: Any,
+        insights: Any,
         oauth: Any,
         sites: Any,
         apiKeys: Any,
@@ -1270,7 +1273,8 @@ enum XlyraAPISnapshotBuilder {
         _ = ready
         _ = objectPayload(version)
         _ = arrayPayload(siteTypes)
-        let overviewObject = objectPayload(overview)
+        let overviewObject = objectPayload(usage)
+        let insightsObject = objectPayload(insights)
         let healthRows = arrayPayload(healthSites)
         let siteUsageRows = siteUsageRows(from: overviewObject)
         let cooldownRows = arrayPayload(cooldowns)
@@ -1284,7 +1288,7 @@ enum XlyraAPISnapshotBuilder {
 
         let requestSummary = requestSummary(from: overviewObject, requestsPayload: requests)
         let usageSummary = usageSummary(from: overviewObject, siteRows: siteRows, oauthRows: oauthRows)
-        let errors = errorRows(from: overviewObject, requestsPayload: requests)
+        let errors = errorRows(from: overviewObject, insightsObject: insightsObject, requestsPayload: requests)
         let cooldownSummary = cooldownSummary(from: overviewObject, cooldownsPayload: cooldowns)
 
         return XlyraSnapshot(
@@ -1591,16 +1595,37 @@ enum XlyraAPISnapshotBuilder {
         }
     }
 
-    private static func errorRows(from object: [String: Any], requestsPayload: Any) -> [XlyraErrorRow] {
+    private static func errorRows(
+        from object: [String: Any],
+        insightsObject: [String: Any],
+        requestsPayload: Any
+    ) -> [XlyraErrorRow] {
         let overviewErrors = errorRows(from: object)
         if overviewErrors.isEmpty == false {
             return overviewErrors
+        }
+        let insightErrors = insightErrorRows(from: insightsObject)
+        if insightErrors.isEmpty == false {
+            return insightErrors
         }
         let grouped = Dictionary(grouping: arrayPayload(requestsPayload).filter { bool($0, "success", "ok") == false }) {
             string($0, "error_type", "error.type", "error.code") ?? "unknown"
         }
         return grouped.map { XlyraErrorRow(errorType: $0.key, count: $0.value.count) }
             .sorted { $0.count == $1.count ? $0.errorType < $1.errorType : $0.count > $1.count }
+    }
+
+    private static func insightErrorRows(from object: [String: Any]) -> [XlyraErrorRow] {
+        array(object, "insights.failure_reasons", "failure_reasons").compactMap { row in
+            guard let reason = string(row, "reason", "error_type", "type"), reason != "none" else {
+                return nil
+            }
+            return XlyraErrorRow(
+                errorType: reason,
+                count: int(row, "request_count", "count", "total") ?? 0
+            )
+        }
+        .sorted { $0.count == $1.count ? $0.errorType < $1.errorType : $0.count > $1.count }
     }
 
     private static func cooldownSummary(from object: [String: Any], cooldownsPayload: Any) -> XlyraCooldownSummary {
